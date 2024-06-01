@@ -1,0 +1,21 @@
+[tool.poetry]
+name = "plex"
+version = "0.1.0"
+description = ""
+authors = ["John Sturgeon <john.sturgeon@me.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.11"
+plexapi = "^4.15.7"
+tidal-dl = "^2022.10.31.1"
+pyqt5 = "^5.15.10"
+qt-material = "^2.14"
+inquirer = "^3.2.4"
+rich = "^13.7.1"
+python-dotenv = "^1.0.1"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
