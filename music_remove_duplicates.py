@@ -1,5 +1,6 @@
 import os
 import time
+import logging
 from typing import List, Dict, Optional
 
 import inquirer
@@ -8,7 +9,8 @@ from plexapi.audio import Track
 from plexapi.library import Library, MusicSection
 from plexapi.playlist import Playlist
 from plexapi.server import PlexServer
-from plexapi.exceptions import Unauthorized
+from plexapi.exceptions import Unauthorized, NotFound
+from rich.padding import Padding
 from rich.panel import Panel
 from rich.progress import Progress
 from rich.console import Console, Group
@@ -17,7 +19,11 @@ from rich.table import Table
 from rich.tree import Tree
 
 console: Console = Console()
-PLEX_SERVER: Optional[PlexServer] = None
+DUPLICATE_PLAYLIST_NAME = "GoshDarned Duplicates"
+
+
+class JHSException(Exception):
+    pass
 
 
 class JHSTrack:
@@ -64,72 +70,92 @@ class JHSTrack:
         return stars
 
 
-def print_duplicate_information(tracks: List[JHSTrack], count, index) -> None:
-    track_1: JHSTrack = tracks[0]
-    tree = Tree(f"[red]{index}/{count}[/red]: [blue]Song Details[/blue]")
-    tree.add(f"[green]Album:[/green] {track_1.album}")
-    tree.add(f"[green]Artist:[/green] {track_1.artist}")
-    tree.add(f"[green]Duration:[/green] {track_1.song_len}")
-    tree.add(f"[green]Duplicates ([i]including original[/i]):[/green] {len(tracks)}")
-    table = Table(show_header=True, header_style="bold magenta")
-    table.add_column("Version", justify="center")
-    table.add_column("Date Added")
-    table.add_column("Plays", justify="center")
-    table.add_column("Rating", justify="left")
-    table.add_column("Codec", justify="left")
-    table.add_column("Filepath", justify="left")
-    track_version: int = 1
-    for track in tracks:
-        table.add_row(
-            str(track_version),
-            track.added_at,
-            track.play_count,
-            track.rating,
-            track.audio_codec,
-            track.filepath
-        )
-        track_version += 1
-    panel_group = Group(tree, table)
-    box_panel = Panel(
-        panel_group,
-        title=f"[u]{track_1.title}[/u] -- [i]{track_1.artist}[/i]"
+def console_log(message: str, level=logging.NOTSET):
+    style: Optional[str] = None
+    match level:
+        case logging.INFO:
+            style = "blue"
+        case logging.WARN:
+            style = "yellow"
+        case logging.ERROR:
+            style = "red"
+    console.print(message, style=style)
+
+
+def main():
+    # Welcome message and info
+    console.clear()
+    panel = Panel.fit(
+        "\n[green]Welcome to the [b]Plex Music Duplicate Song Remover[/b][/green]\n"
+        "[i]This app will scan your music library searching for duplicates.\n",
+        title="Plex Duplicate Song Finder"
     )
-    console.print(box_panel)
+    console.print(panel)
+    time.sleep(1)
 
+    # set up the environment / and get the music library
+    try:
+        the_music_library: MusicSection = setup()
+    except JHSException as jhs_exception:
+        console.rule()
+        console_log("\n" + str(jhs_exception), logging.ERROR)
+        console_log("\nPlease delete the .env file and re-run to recreate it.\n", logging.INFO)
+        exit(1)
+    success_panel = Panel.fit(
+        f"[green bold]Successfully connected to plex server library"
+        f" \"{os.getenv('MUSIC_LIBRARY_NAME')}\"[/green bold]"
+    )
+    console.print(success_panel)
+    console.print("")
+    console.print("")
+    songs_with_duplicates, num_tracks = duplicate_finder(the_music_library)
+    time.sleep(1)
+    if len(songs_with_duplicates) == 0:
+        console.print("Congratulations! You have no duplicates!")
+        exit(0)
+    else:
+        console.print("")
+        console.rule()
+        console.print("[u][b]Finished![/b] Here's a report of our findings[/u]\n")
+        console.print(f"[b]:heavy_check_mark: Total Tracks Searched:[/b] {num_tracks}")
+        console.print(f"[b]:heavy_check_mark: Total Tracks with Duplicates:[/b] {len(songs_with_duplicates)}")
+        console.rule()
 
-def delete_duplicates(duplicate_sets):
-    duplicates_to_delete: List[str] = []
-    count: int = len(duplicate_sets)
-    index: int = 1
-    for tracks in duplicate_sets:
-        print_duplicate_information(tracks, count, index)
-        choices: List = []
-        track_version: int = 1
-        track: JHSTrack
-        for track in tracks:
-            choices.append(
-                (f"Version: {track_version}",
-                 track.key)
-            )
-            track_version += 1
-        questions = [
-            inquirer.Checkbox(
-                "dupes_to_delete",
-                message="Choose which version(s) to delete:",
-                choices=choices,
-            ),
-        ]
-        answers = inquirer.prompt(questions)
-        if answers is None:
-            if len(duplicates_to_delete) == 0:
-                console.print("There were no duplicates chosen to delete... exiting")
-                exit(0)
-            else:
-                console.print("Would you like to review the duplicates you've chosen to delete?")
-        else:
-            duplicates_to_delete += answers["dupes_to_delete"]
-        index += 1
-    print(duplicates_to_delete)
+    console.print("\nDONE: Let's clean up the duplicates\n", style="bold green")
+    padded_content: Padding = Padding(
+        "[u]Q: What is \"Safe Delete Mode\"?[/u]\n\n"
+        "[i]Enabling Safe Mode Delete will add your duplicate tracks"
+        " to a special playlist [u]without deleting them[/u]."
+        " After the script is complete, you can review them in plex for manual removal", (1, 3)
+    )
+    panel = Panel.fit(padded_content, title="[green]Safe Delete Mode[/green]")
+    console.print(panel)
+    console.print("")
+    enable_safe_mode: bool = Confirm.ask("Would you like to enable [green]Safe Mode Delete[/green]?", default="y")
+    if enable_safe_mode:
+        console.print("\nExcellent, [b]Safe Mode Delete[/b] is now [green]ENABLED[/green]")
+    else:
+        console.print("\nOK, [b]Safe Mode Delete[/b] is [red]OFF[/red]")
+    view_instructions: bool = Confirm.ask("\nView instructions?", default="y")
+    if view_instructions:
+        console.print("")
+        panel = Panel.fit("\n"
+                          "   • Review the song details for each duplicate found\n"
+                          "   • Use Arrow Keys to select songs for deletion\n"
+                          "   • Tab key toggles all items selection\n"
+                          "   • Hit <enter> to continue to next song\n"
+                          "   • Hit Ctrl+C to stop selecting, and you can choose what to do after that.\n\n"
+                          "[yellow][b]NOTE:[/b] Songs will not be deleted until "
+                          "you confirm after all selections have been made.",
+                          title="Instructions")
+        console.print(panel)
+    time.sleep(2)
+    console.print("")
+    duplicate_tracks_to_delete: List[Track] = choose_duplicates_to_delete(songs_with_duplicates)
+    if enable_safe_mode:
+        add_duplicates_to_playlist(duplicate_tracks_to_delete, the_music_library)
+    else:
+        delete_duplicates(duplicate_tracks_to_delete)
 
 
 def setup() -> MusicSection:
@@ -137,29 +163,27 @@ def setup() -> MusicSection:
     Sets up the environment, logs in to the Plex server and returns the library.
     Returns:
         Library: Library object for the music library
+    Throws:
+        Unauthorized
 
     """
-    global PLEX_SERVER
     found_env = load_dotenv()
 
     # if there is an existing .env, let's use it to try and log in
     if found_env:
-        console.print("\n[green]Found an existing .env file, checking it for valid login info[/green]")
-        PLEX_SERVER = connect_to_plexserver()
+        console_log("\n:information: Found an existing .env file, checking it for valid login info")
+        plex = connect_to_plexserver()
     else:
         #  write code to get ENV vars here
         pass
 
     library_name: str = os.getenv("MUSIC_LIBRARY_NAME")
-    library: MusicSection = PLEX_SERVER.library.section(library_name)
     if not library_name:
-        console.rule()
-        console.print(
-            "[red]No music library name was found in the .env![/red]\n"
-            "[yellow]Please delete the .env file and re-run to recreate it.[/yellow]"
-        )
-        exit(1)
-
+        raise JHSException("MUSIC_LIBRARY_NAME environment variable is missing.")
+    try:
+        library: MusicSection = plex.library.section(library_name)
+    except NotFound:
+        raise JHSException(f"Plex Library \"{library_name}\" not found")
     return library
 
 
@@ -168,36 +192,25 @@ def connect_to_plexserver() -> PlexServer:
     # if we're using token based auth, then all we need is the base url
     if token:
         console.print("")
-        console.print("[blue]Found a Plex Token, trying to log in with that[/blue]\n")
+        console_log(":information: Found a Plex Token, trying to log in with that\n")
         plex_url = os.getenv("PLEX_URL")
         try:
             plex = PlexServer(plex_url, token)
-        except Unauthorized as e:
-            console.print(
-                "[red]Could not log into plex server with values in .env[/red]\n"
-                "[yellow]Please delete the .env file and re-run to recreate it.[/yellow]"
-                f"{e}"
-            )
-            exit(1)
-
+        except Unauthorized:
+            raise JHSException("Could not log into plex server with values in .env")
     else:
         from plexapi.myplex import MyPlexAccount
         username = os.getenv("PLEX_USERNAME")
         password = os.getenv("PLEX_PASSWORD")
         servername = os.getenv("PLEX_SERVERNAME")
         account = MyPlexAccount(username, password)
-        plex = account.resource(servername).connect()  # returns a PlexServer instance
+        try:
+            plex = account.resource(servername).connect()  # returns a PlexServer instance
+        except Unauthorized:
+            raise JHSException("Could not log into plex server with values in .env")
 
     if not plex:
-        console.print(
-            "[red]Could not log into plex server with values in .env[/red]\n"
-            "[yellow]Please delete the .env file and re-run to recreate it.[/yellow]"
-        )
-        exit(1)
-    success_panel = Panel.fit("[green bold]Successfully connected to plex server[/green bold]")
-    console.print(success_panel)
-    console.print("")
-
+        raise JHSException("Could not log into plex server with values in .env")
     return plex
 
 
@@ -234,40 +247,87 @@ def duplicate_finder(music_library: MusicSection) -> (List[List[Track]], int):
     return return_sets, count
 
 
-if __name__ == '__main__':
-    panel = Panel.fit(
-        "\n[green]Welcome to the [b]Plex Music Duplicate Song Remover[/b][/green]\n"
-        "[i]This app will scan your music library searching for duplicates.\n",
-        title="Plex Duplicate Song Finder"
+def choose_duplicates_to_delete(duplicate_sets) -> List[Track]:
+    duplicate_tracks_to_delete: List[Track] = []
+    count: int = len(duplicate_sets)
+    index: int = 1
+    for tracks in duplicate_sets:
+        print_duplicate_information(tracks, count, index)
+        choices: List = []
+        track_version: int = 1
+        track: JHSTrack
+        for track in tracks:
+            choices.append(
+                (f"Version: {track_version}",
+                 track.track)
+            )
+            track_version += 1
+        questions = [
+            inquirer.Checkbox(
+                "dupes_to_delete",
+                message="Choose which version(s) to delete:",
+                choices=choices,
+            ),
+        ]
+        answers = inquirer.prompt(questions)
+        if answers is None:
+            if len(duplicate_tracks_to_delete) == 0:
+                console.print("There were no duplicates chosen to delete... exiting")
+                exit(0)
+            else:
+                Panel.fit("There were some duplicates you selected")
+                answer: bool = Prompt.ask(
+                    "Would you like to review the duplicates you've chosen to delete?",
+                    choices=["Continue", "Exit"], default="Continue")
+                break
+        else:
+            duplicate_tracks_to_delete += answers["dupes_to_delete"]
+        index += 1
+    return duplicate_tracks_to_delete
+
+
+def delete_duplicates(delete_keys: List[str], plex) -> None:
+    tracks_to_delete: List[JHSTrack] = []
+    for key in delete_keys:
+        pass
+
+
+def add_duplicates_to_playlist(duplicate_tracks: List[Track], music_library: MusicSection) -> None:
+    playlist: Playlist = music_library.createPlaylist(title=DUPLICATE_PLAYLIST_NAME, items=duplicate_tracks)
+
+
+def print_duplicate_information(tracks: List[JHSTrack], count, index) -> None:
+    track_1: JHSTrack = tracks[0]
+    tree = Tree(f"[red]{index}/{count}[/red]: [blue]Song Details[/blue]")
+    tree.add(f"[green]Album:[/green] {track_1.album}")
+    tree.add(f"[green]Artist:[/green] {track_1.artist}")
+    tree.add(f"[green]Duration:[/green] {track_1.song_len}")
+    tree.add(f"[green]Duplicates ([i]including original[/i]):[/green] {len(tracks)}")
+    table = Table(show_header=True, header_style="bold magenta")
+    table.add_column("Version", justify="center")
+    table.add_column("Date Added")
+    table.add_column("Plays", justify="center")
+    table.add_column("Rating", justify="left")
+    table.add_column("Codec", justify="left")
+    table.add_column("Filepath", justify="left")
+    track_version: int = 1
+    for track in tracks:
+        table.add_row(
+            str(track_version),
+            track.added_at,
+            track.play_count,
+            track.rating,
+            track.audio_codec,
+            track.filepath
+        )
+        track_version += 1
+    panel_group = Group(tree, table)
+    box_panel = Panel(
+        panel_group,
+        title=f"[u]{track_1.title}[/u] -- [i]{track_1.artist}[/i]"
     )
-    console.clear()
-    console.print(panel)
-    time.sleep(1)
-    the_music_library: MusicSection = setup()
-    console.print("")
-    sets, num_tracks = duplicate_finder(the_music_library)
-    time.sleep(1)
-    if len(sets) == 0:
-        console.print("Congratulations! You have no duplicates!")
-        exit(0)
-    else:
-        console.print("")
-        console.rule()
-        console.print("[u]Finished Here's a report of our findings[/u]\n")
-        console.print(f"[b]:heavy_check_mark: Total Tracks Searched:[/b] {num_tracks}")
-        console.print(f"[b]:heavy_check_mark: Total Tracks with Duplicates:[/b] {len(sets)}")
-        console.rule()
+    console.print(box_panel)
 
-    console.print("\nDONE: Let's clean up the duplicates\n", style="bold green")
-    should_continue: bool = Confirm.ask("Should we continue?", default="y")
-    if not should_continue:
-        exit(0)
 
-    console.print("")
-    console.print("\nOK, I'm going to go through each song and you need to "
-                  "choose which song to delete by selecting the checkbox.")
-    console.print("Hit Ctrl+C to stop selecting, and you can choose what to do after that.\n")
-    time.sleep(2)
-    console.rule()
-    console.print("")
-    delete_duplicates(sets)
+if __name__ == '__main__':
+    main()
