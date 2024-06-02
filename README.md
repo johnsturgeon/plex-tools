@@ -24,6 +24,9 @@ python music_remove_duplicates.py
 Fire up the app, it will walk you through an initial configuration, Optionally offer to save the config in a `.env` file, and begin the search
 
 ### Setup
+The setup process will attempt to connect to your plex server using credentials supplied in the .env file.  If successful, it will search for duplicates.
+
+<img width="610" alt="Untitled" src="https://github.com/johnsturgeon/plex-tools/assets/9746310/dd7b1bf8-8844-49c5-9c8c-6e117b152c03">
 
 
 ### Safe Clean
