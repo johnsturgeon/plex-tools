@@ -17,33 +17,6 @@ mutagen = "*"
 requests = "*"
 
 [[package]]
-name = "ansicon"
-version = "1.89.0"
-description = "Python wrapper for loading Jason Hood's ANSICON"
-optional = false
-python-versions = "*"
-files = [
-    {file = "ansicon-1.89.0-py2.py3-none-any.whl", hash = "sha256:f1def52d17f65c2c9682cf8370c03f541f410c1752d6a14029f97318e4b9dfec"},
-    {file = "ansicon-1.89.0.tar.gz", hash = "sha256:e4d039def5768a47e4afec8e89e83ec3ae5a26bf00ad851f914d1240b444d2b1"},
-]
-
-[[package]]
-name = "blessed"
-version = "1.20.0"
-description = "Easy, practical library for making terminal apps, by providing an elegant, well-documented interface to Colors, Keyboard input, and screen Positioning capabilities."
-optional = false
-python-versions = ">=2.7"
-files = [
-    {file = "blessed-1.20.0-py2.py3-none-any.whl", hash = "sha256:0c542922586a265e699188e52d5f5ac5ec0dd517e5a1041d90d2bbf23f906058"},
-    {file = "blessed-1.20.0.tar.gz", hash = "sha256:2cdd67f8746e048f00df47a2880f4d6acbcdb399031b604e34ba8f71d5787680"},
-]
-
-[package.dependencies]
-jinxed = {version = ">=1.1.0", markers = "platform_system == \"Windows\""}
-six = ">=1.9.0"
-wcwidth = ">=0.1.4"
-
-[[package]]
 name = "certifi"
 version = "2023.11.17"
 description = "Python package for providing Mozilla's CA Bundle."
@@ -165,21 +138,6 @@ files = [
 ]
 
 [[package]]
-name = "editor"
-version = "1.6.6"
-description = "🖋 Open the default text editor 🖋"
-optional = false
-python-versions = ">=3.8"
-files = [
-    {file = "editor-1.6.6-py3-none-any.whl", hash = "sha256:e818e6913f26c2a81eadef503a2741d7cca7f235d20e217274a009ecd5a74abf"},
-    {file = "editor-1.6.6.tar.gz", hash = "sha256:bb6989e872638cd119db9a4fce284cd8e13c553886a1c044c6b8d8a160c871f8"},
-]
-
-[package.dependencies]
-runs = "*"
-xmod = "*"
-
-[[package]]
 name = "idna"
 version = "3.6"
 description = "Internationalized Domain Names in Applications (IDNA)"
@@ -189,22 +147,6 @@ files = [
     {file = "idna-3.6-py3-none-any.whl", hash = "sha256:c05567e9c24a6b9faaa835c4821bad0590fbb9d5779e7caa6e1cc4978e7eb24f"},
     {file = "idna-3.6.tar.gz", hash = "sha256:9ecdbbd083b06798ae1e86adcbfe8ab1479cf864e4ee30fe4e46a003d12491ca"},
 ]
-
-[[package]]
-name = "inquirer"
-version = "3.2.4"
-description = "Collection of common interactive command line user interfaces, based on Inquirer.js"
-optional = false
-python-versions = ">=3.8.1"
-files = [
-    {file = "inquirer-3.2.4-py3-none-any.whl", hash = "sha256:273a4e4a4345ac1afdb17408d40fc8dccf3485db68203357919468561035a763"},
-    {file = "inquirer-3.2.4.tar.gz", hash = "sha256:33b09efc1b742b9d687b540296a8b6a3f773399673321fcc2ab0eb4c109bf9b5"},
-]
-
-[package.dependencies]
-blessed = ">=1.19.0"
-editor = ">=1.6.0"
-readchar = ">=3.0.6"
 
 [[package]]
 name = "jinja2"
@@ -222,20 +164,6 @@ MarkupSafe = ">=2.0"
 
 [package.extras]
 i18n = ["Babel (>=2.7)"]
-
-[[package]]
-name = "jinxed"
-version = "1.2.1"
-description = "Jinxed Terminal Library"
-optional = false
-python-versions = "*"
-files = [
-    {file = "jinxed-1.2.1-py2.py3-none-any.whl", hash = "sha256:37422659c4925969c66148c5e64979f553386a4226b9484d910d3094ced37d30"},
-    {file = "jinxed-1.2.1.tar.gz", hash = "sha256:30c3f861b73279fea1ed928cfd4dfb1f273e16cd62c8a32acfac362da0f78f3f"},
-]
-
-[package.dependencies]
-ansicon = {version = "*", markers = "platform_system == \"Windows\""}
 
 [[package]]
 name = "markdown-it-py"
@@ -385,20 +313,6 @@ wcwidth = "*"
 
 [package.extras]
 tests = ["pytest", "pytest-cov", "pytest-lazy-fixtures"]
-
-[[package]]
-name = "prompt-toolkit"
-version = "3.0.36"
-description = "Library for building powerful interactive command lines in Python"
-optional = false
-python-versions = ">=3.6.2"
-files = [
-    {file = "prompt_toolkit-3.0.36-py3-none-any.whl", hash = "sha256:aa64ad242a462c5ff0363a7b9cfe696c20d55d9fc60c11fd8e632d064804d305"},
-    {file = "prompt_toolkit-3.0.36.tar.gz", hash = "sha256:3e163f254bef5a03b146397d7c1963bd3e2812f0964bb9a24e6ec761fd28db63"},
-]
-
-[package.dependencies]
-wcwidth = "*"
 
 [[package]]
 name = "pycryptodome"
@@ -555,31 +469,6 @@ files = [
 Jinja2 = "*"
 
 [[package]]
-name = "questionary"
-version = "2.0.1"
-description = "Python library to build pretty command line user prompts ⭐️"
-optional = false
-python-versions = ">=3.8"
-files = [
-    {file = "questionary-2.0.1-py3-none-any.whl", hash = "sha256:8ab9a01d0b91b68444dff7f6652c1e754105533f083cbe27597c8110ecc230a2"},
-    {file = "questionary-2.0.1.tar.gz", hash = "sha256:bcce898bf3dbb446ff62830c86c5c6fb9a22a54146f0f5597d3da43b10d8fc8b"},
-]
-
-[package.dependencies]
-prompt_toolkit = ">=2.0,<=3.0.36"
-
-[[package]]
-name = "readchar"
-version = "4.1.0"
-description = "Library to easily read single chars and key strokes"
-optional = false
-python-versions = ">=3.8"
-files = [
-    {file = "readchar-4.1.0-py3-none-any.whl", hash = "sha256:d163680656b34f263fb5074023db44b999c68ff31ab394445ebfd1a2a41fe9a2"},
-    {file = "readchar-4.1.0.tar.gz", hash = "sha256:6f44d1b5f0fd93bd93236eac7da39609f15df647ab9cea39f5bc7478b3344b99"},
-]
-
-[[package]]
 name = "requests"
 version = "2.31.0"
 description = "Python HTTP for Humans."
@@ -617,31 +506,6 @@ pygments = ">=2.13.0,<3.0.0"
 
 [package.extras]
 jupyter = ["ipywidgets (>=7.5.1,<9)"]
-
-[[package]]
-name = "runs"
-version = "1.2.2"
-description = "🏃 Run a block of text as a subprocess 🏃"
-optional = false
-python-versions = ">=3.8"
-files = [
-    {file = "runs-1.2.2-py3-none-any.whl", hash = "sha256:0980dcbc25aba1505f307ac4f0e9e92cbd0be2a15a1e983ee86c24c87b839dfd"},
-    {file = "runs-1.2.2.tar.gz", hash = "sha256:9dc1815e2895cfb3a48317b173b9f1eac9ba5549b36a847b5cc60c3bf82ecef1"},
-]
-
-[package.dependencies]
-xmod = "*"
-
-[[package]]
-name = "six"
-version = "1.16.0"
-description = "Python 2 and 3 compatibility utilities"
-optional = false
-python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*"
-files = [
-    {file = "six-1.16.0-py2.py3-none-any.whl", hash = "sha256:8abb2f1d86890a2dfb989f9a77cfcfd3e47c2a354b01111771326f8aa26e0254"},
-    {file = "six-1.16.0.tar.gz", hash = "sha256:1e61c37477a1626458e36f7b1d82aa5c9b094fa4802892072e49de9c60c4c926"},
-]
 
 [[package]]
 name = "tidal-dl"
@@ -688,18 +552,7 @@ files = [
     {file = "wcwidth-0.2.13.tar.gz", hash = "sha256:72ea0c06399eb286d978fdedb6923a9eb47e1c486ce63e9b4e64fc18303972b5"},
 ]
 
-[[package]]
-name = "xmod"
-version = "1.8.1"
-description = "🌱 Turn any object into a module 🌱"
-optional = false
-python-versions = ">=3.8"
-files = [
-    {file = "xmod-1.8.1-py3-none-any.whl", hash = "sha256:a24e9458a4853489042522bdca9e50ee2eac5ab75c809a91150a8a7f40670d48"},
-    {file = "xmod-1.8.1.tar.gz", hash = "sha256:38c76486b9d672c546d57d8035df0beb7f4a9b088bc3fb2de5431ae821444377"},
-]
-
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.11"
-content-hash = "703ab36b53bc15bd2576d6d7a42acb0d36ef7b6f3215f8b3a1583f54d4483ba3"
+content-hash = "a137fcd59791948030b2c27f1b4eea45fe2902450b856ef80dfd8a87b00fcc77"
