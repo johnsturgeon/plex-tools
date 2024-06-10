@@ -5,23 +5,32 @@ Utilities and scripts for plex using the Plex API
 
 ## `music_remove_duplicates.py`
 
-At the moment, this script will search your Music Library for duplicates.  It will provide information for you to decide which ones you want to clean.
+This script will search your Plex Music Library for duplicates.  It will provide information for you to decide which ones you want to clean.  You can choose to "Safe Clean" (place all duplicates in a playlist) or delete.
 
 ## Prerequisites
 * Plex Login credentials (either `token` or `username/password`)  
   _see [Plex API Login](https://python-plexapi.readthedocs.io/en/stable/introduction.html#getting-a-plexserver-instance) documentation for more details._
 * Your Plex server URL
+* Python 3.10
+
+## Installation
+
+*  Install dependencies
 
 ```bash
-pip install rich inquire python-dotenv plexapi
+mkdir plex-tools
+cd plex-tools
+# Recommended: Use a virtual env
+pip install rich python-dotenv plexapi
 ```
-
+* Download python script [music_remove_duplicates.py](music_remove_duplicates.py)
+* Run the script
 ## Usage
 ```bash
 python music_remove_duplicates.py
 ```
 
-Fire up the app, it will walk you through an initial configuration, Optionally offer to save the config in a `.env` file, and begin the search
+The script will walk you through an initial configuration, Optionally offer to save the config in a `.env` file, and begin the search
 
 ### Setup
 The setup process will attempt to connect to your plex server using credentials supplied in the .env file.  If successful, it will search for duplicates.
