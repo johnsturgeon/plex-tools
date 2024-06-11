@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "plex"
-version = "0.1.0"
+version = "1.0.0"
 description = ""
 authors = ["John Sturgeon <john.sturgeon@me.com>"]
 readme = "README.md"
@@ -13,6 +13,7 @@ pyqt5 = "^5.15.10"
 qt-material = "^2.14"
 rich = "^13.7.1"
 python-dotenv = "^1.0.1"
+shazamio = "^0.6.0"
 
 
 [build-system]

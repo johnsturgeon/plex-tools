@@ -235,16 +235,17 @@ def main():
             for duplicate in duplicate_set.flagged_delete_jhs_tracks:
                 review_tracks += f"*  \"{duplicate.title}\" - {duplicate.filepath}\n"
         console.print(Markdown(review_tracks))
-        answer = Confirm.ask("Continue with cleanup?", default="y")
-        if not answer:
-            console.print("Exiting...")
-            exit(0)
     if enable_safe_mode:
         console.print(f"[green]Finished selecting songs, safe mode enabled,"
                       f" creating playlist: \"{DEFAULT_DUPLICATE_PLAYLIST_NAME}\"")
         add_duplicates_to_playlist(songs_with_duplicates, the_music_library)
         console.print(f"[green]Playlist created[/green]\nExiting...")
     else:
+        console.print(f"Finished selecting songs, safe mode [red]disabled[/red]")
+        answer = Confirm.ask("Continue with delete?", default="y")
+        if not answer:
+            console.print("Exiting...")
+            exit(0)
         delete_duplicates(songs_with_duplicates)
 
 
