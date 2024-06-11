@@ -13,7 +13,7 @@ This script will search your Plex Music Library for duplicates.  It will provide
 * Plex Login credentials (either `token` or `username/password`)  
   _see [Plex API Login](https://python-plexapi.readthedocs.io/en/stable/introduction.html#getting-a-plexserver-instance) documentation for more details._
 * Your Plex server URL
-* Python 3.10
+* Python 3.11
 
 ## Quick Start
 
