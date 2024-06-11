@@ -1,2 +1,7 @@
-from .plex_auth import JHSException, setup
-__all__ = ['JHSException', 'setup']
+from plex_auth import JHSException, setup
+from wrappers import JHSTrack
+__all__ = [
+    'JHSException',
+    'setup',
+    'JHSTrack'
+]
