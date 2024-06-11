@@ -29,7 +29,15 @@ pip install rich python-dotenv plexapi
 * Run the script `python music_remove_duplicates.py`
 * The script will walk you through the entire process
 
+## Questions / Comments / Requests?
+
+Join our [discussion](https://github.com/johnsturgeon/plex-tools/discussions).
+
 # Detailed walk-through
+
+<details>
+  <summary>Detailed walk through for `music_remove_duplicates.py`</summary>
+
 
 ## Usage
 
@@ -73,5 +81,6 @@ Each song that has duplicate(s) files will present you with a choice for choosin
 
 ## Final review
 
-You will be asked if you'd like to review the actual files that you've chosen for clean-up then, either the files will be placed into a playlist (safe delete) or deleted
+You will be asked if you'd like to review the actual files that you've chosen for clean-up then, either the files will be placed into a playlist (safe delete) or deleted.
 
+</details>
