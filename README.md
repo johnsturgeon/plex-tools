@@ -1,11 +1,12 @@
-# GoshDarned Plex Tools
-<img width="300" src="https://github.com/johnsturgeon/plex-tools/assets/9746310/0c42ce63-983b-43a6-8f2e-77338e204cba">
+# GoshDarned Tools
 
-Utilities and scripts for plex using the Plex API
+Utilities and scripts for plex using the Plex API to clean up your Plex Music library.
+
+<img width="300" src="https://github.com/johnsturgeon/plex-tools/assets/9746310/0c42ce63-983b-43a6-8f2e-77338e204cba">
 
 ---
 
-## `music_remove_duplicates.py`
+## Deduplex: `deduplex.py`
 
 This script will search your Plex Music Library for duplicates.  It will provide information for you to decide which ones you want to clean.  You can choose to "Safe Clean" (place all duplicates in a playlist) or delete.
 
@@ -25,8 +26,8 @@ cd plex-tools
 # Recommended: Use a virtual env
 pip install rich python-dotenv plexapi
 ```
-* Download python script [music_remove_duplicates.py](music_remove_duplicates.py)
-* Run the script `python music_remove_duplicates.py`
+* Download python script [deduplex.py](deduplex.py)
+* Run the script `python deduplex.py`
 * The script will walk you through the entire process
 
 ## Questions / Comments / Requests?
@@ -36,13 +37,13 @@ Join our [discussion](https://github.com/johnsturgeon/plex-tools/discussions).
 # Detailed walk-through
 
 <details>
-  <summary>Detailed walk through for `music_remove_duplicates.py`</summary>
+  <summary>Detailed walk through for Deduplex</summary>
 
 
 ## Usage
 
 ```bash
-python music_remove_duplicates.py
+python deduplexs.py
 ```
 
 The script will walk you through an initial configuration, Optionally offer to save the config in a `.env` file, and begin the search
