@@ -1,7 +1,8 @@
-from .plex_auth import JHSException, setup
-from .wrappers import JHSTrack
+from .plex_auth import GDException, setup
+from .wrappers import GDPlexTrack, GDShazamTrack
 __all__ = [
-    'JHSException',
+    'GDException',
     'setup',
-    'JHSTrack'
+    'GDPlexTrack',
+    'GDShazamTrack'
 ]

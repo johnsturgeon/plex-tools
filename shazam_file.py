@@ -1,25 +1,26 @@
 import asyncio
-import sys
+
+import requests
 from typing import Optional, Dict
 
 from plexapi.audio import Track
 from plexapi.exceptions import NotFound
-from plexapi.library import Library, MusicSection
-from plexapi.myplex import Section
+from plexapi.library import MusicSection
 from plexapi.playlist import Playlist
 from rich.console import Console, Group
 from rich.markdown import Markdown
 from rich.padding import Padding
 from rich.panel import Panel
 from rich.prompt import Prompt, Confirm
+from rich.table import Table
 from shazamio import Shazam, Serialize
-from plex_utils import JHSException, setup, JHSTrack
+from plex_utils import setup, GDPlexTrack, GDShazamTrack
 
 console = Console()
 MAX_PLAYLIST_SIZE = 100
 
 
-def get_root_folder_map(library: MusicSection) -> {}:
+def get_root_folder_map(library: MusicSection) -> Dict[str, str]:
     folder_map: Dict[str, str] = {}
     for remote_location in library.locations:
         local_location = Prompt.ask(f"Enter your local folder that maps to {remote_location}")
@@ -40,9 +41,30 @@ def instructions_panel() -> Panel:
     padded_content: Padding = Padding(content, (1, 3))
     return Panel.fit(padded_content, title="Instructions")
 
+def track_details_table(gd_plex_track: GDPlexTrack, gd_shazam_track: GDShazamTrack) -> Table:
+    table = Table(show_header=True, header_style="bold magenta")
+    table.add_column("Source", justify="left")
+    table.add_column("Artist", justify="left")
+    table.add_column("Title", justify="left")
+    table.add_column("Album", justify="left")
+    table.add_row(
+        "Plex",
+        gd_plex_track.artist,
+        gd_plex_track.title,
+        gd_plex_track.album,
+    )
+    table.add_row(
+        "Shazam",
+        gd_shazam_track.artist,
+        gd_shazam_track.title,
+        gd_shazam_track.album,
+    )
+    return table
+
 
 def get_playlist(library: MusicSection) -> Optional[Playlist]:
     not_found: bool = True
+    playlist: Optional[Playlist] = None
     while not_found:
         answer: str = Prompt.ask("Please enter a playlist name")
         try:
@@ -55,7 +77,7 @@ def get_playlist(library: MusicSection) -> Optional[Playlist]:
                 f"Playlist [blue]{answer} [red]too large[/red]\n"
                 f"Please limit the query to 100 tracks at a time."
             )
-            done: bool = Confirm.ask("Quit, or retry?", choices=("q", "r"))
+            done: bool = Confirm.ask("Quit, or retry?", choices=["q", "r"])
             if done:
                 return None
             else:
@@ -65,6 +87,7 @@ def get_playlist(library: MusicSection) -> Optional[Playlist]:
 
 
 async def main():
+    shazam = Shazam()
     library: MusicSection = setup(console)
     playlist = get_playlist(library)
     if playlist is None:
@@ -75,25 +98,52 @@ async def main():
     location: str = Confirm.ask(
         "Where are you running this script?", choices=["Remote", "Direct"], default="Remote"
     )
-    map_folders: bool = False
+    root_folder_map: Dict[str, str] = {}
     if location == "Remote":
-        map_folders = True
-        root_folder_map: dict = get_root_folder_map(library)
+        root_folder_map = get_root_folder_map(library)
     track: Track
     for track in playlist.items():
-        a_track: JHSTrack = JHSTrack(track)
-        print(f"{a_track.title}")
-    shazam = Shazam()
-    local_dir = '/Volumes/Media/'
-    server_dir = '/media/'
-    out = await shazam.recognize('/Volumes/Media/PlexMedia/Music/Stellar Exodus/Ephemeral/01 Ephemeral.flac')
-    serialized = Serialize.track(data=out['track'])
-    album: str = serialized.sections[0].metadata[0].text
-    artist: str = serialized.subtitle
-    title: str = serialized.title
+        console.print("First let's try a quick Shazam search")
+        gd_plex_track: GDPlexTrack = GDPlexTrack(track)
+        out = await shazam.recognize(gd_plex_track.mapped_filepath(root_folder_map))
+        gd_shazam_track: GDShazamTrack = GDShazamTrack(Serialize.track(out['track']))
+        if gd_shazam_track.match_confidence(gd_plex_track) >= 95:
+            console.print(f"Matched! {gd_shazam_track}\n")
+            continue
+        console.print("Quick search didn't match")
+        console.print(track_details_table(gd_plex_track, gd_shazam_track))
+        console.rule(title="Begin Deep Match")
+        console.print("Trying to match based on streaming.  Patience,")
+        url = track.getStreamURL()
+        r = requests.get(url)
+        out = await shazam.recognize(data=r.content)
+        serialized = Serialize.track(out['track'])
+        gd_shazam_track = GDShazamTrack(serialized)
+        console.rule(characters=" -")
+        console.print("\nResults after deep match:")
+        console.print(track_details_table(gd_plex_track, gd_shazam_track))
+        if gd_shazam_track.match_confidence(gd_plex_track) >= 95:
+            console.print(f"Matched! {gd_shazam_track}\n")
+        else:
+            console.print("NO MATCH (GO DEEPER)")
+            console.print("This time let's advance to halfway through the song")
+            half_way: int = (gd_plex_track.duration // 1000) // 2
+            url = url + "&offset=" + str(half_way)
+            console.print(url)
+            r = requests.get(url)
+            out = await shazam.recognize(data=r.content)
+            serialized = Serialize.track(out['track'])
+            gd_shazam_track = GDShazamTrack(serialized)
+            console.print("\nResults after DEEPER match:")
+            console.print(track_details_table(gd_plex_track, gd_shazam_track))
+            if gd_shazam_track.match_confidence(gd_plex_track) >= 95:
+                console.print(f"FINALLY!!!!Matched! {gd_shazam_track}\n")
+            else:
+                console.print("NO MATCH (GIVE UP)")
 
-    print(serialized)
+        console.rule(title="End Find Match")
+    return
+
 
 if __name__ == '__main__':
-    loop = asyncio.get_event_loop()
-    loop.run_until_complete(main())
+    asyncio.run(main())

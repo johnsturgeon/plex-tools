@@ -10,7 +10,7 @@ from rich.prompt import Prompt
 from pathlib import Path
 
 
-class JHSException(Exception):
+class GDException(Exception):
     pass
 
 
@@ -24,7 +24,7 @@ def _connect_to_plexserver(console: Console) -> PlexServer:
         try:
             plex = PlexServer(plex_url, token)
         except Unauthorized:
-            raise JHSException("Could not log into plex server with values in .env")
+            raise GDException("Could not log into plex server with values in .env")
     else:
         from plexapi.myplex import MyPlexAccount
         username = os.getenv("PLEX_USERNAME")
@@ -34,10 +34,10 @@ def _connect_to_plexserver(console: Console) -> PlexServer:
         try:
             plex = account.resource(servername).connect()  # returns a PlexServer instance
         except Unauthorized:
-            raise JHSException("Could not log into plex server with values in .env")
+            raise GDException("Could not log into plex server with values in .env")
 
     if not plex:
-        raise JHSException("Could not log into plex server with values in .env")
+        raise GDException("Could not log into plex server with values in .env")
     return plex
 
 
@@ -89,7 +89,7 @@ def setup(console: Console) -> MusicSection:
         load_dotenv()
     try:
         plex = _connect_to_plexserver(console)
-    except JHSException as jhs_exception:
+    except GDException as jhs_exception:
         console.rule()
         console.print(f"\n[red]{jhs_exception}[/red]")
         console.print("\n[yellow]Please delete the .env file and re-run to recreate it.[/yellow]\n")
