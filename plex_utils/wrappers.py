@@ -35,6 +35,10 @@ class GDPlexTrack:
     def is_identical(self, other):
         return self.track == other.track
 
+    def durations_are_close(self, duration, variance = 5000):
+        """ durations are in milliseconds """
+        return self.duration - variance < duration < self.duration + variance
+
 
     @property
     def star_rating(self) -> str:
@@ -111,3 +115,13 @@ class GDShazamTrack:
                 self.artist_match_confidence(gd_plex_track) +
                 self.album_match_confidence(gd_plex_track)
             ) / 3
+
+
+class GDAcoustID:
+    def __init__(self):
+        pass
+
+
+class GDMusicBrainz:
+    def __init__(self):
+        pass
