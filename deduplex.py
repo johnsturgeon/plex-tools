@@ -1,14 +1,12 @@
 import os
 import time
 import logging
-from pathlib import Path
 from typing import List, Dict, Optional
 
-from dotenv import load_dotenv, set_key
 from plexapi.audio import Track
-from plexapi.library import Library, MusicSection
+from plexapi.library import MusicSection
 from plexapi.server import PlexServer
-from plexapi.exceptions import Unauthorized, NotFound
+from plexapi.exceptions import Unauthorized
 from rich.padding import Padding
 from rich.panel import Panel
 from rich.progress import Progress
@@ -19,14 +17,11 @@ from rich.style import Style
 from rich.table import Table
 from rich.tree import Tree
 
-from plex_utils import setup
+from plex_utils import setup, GDException
 
 console: Console = Console()
 DEFAULT_DUPLICATE_PLAYLIST_NAME = "GoshDarned Duplicates"
 
-
-class JHSException(Exception):
-    pass
 
 
 class JHSTrack:
@@ -182,9 +177,9 @@ def main():
     # set up the environment / and get the music library
     try:
         the_music_library: MusicSection = setup(console)
-    except JHSException as jhs_exception:
+    except GDException as gd_exception:
         console.rule()
-        console_log("\n" + str(jhs_exception), logging.ERROR)
+        console_log("\n" + str(gd_exception), logging.ERROR)
         console_log("\nPlease delete the .env file and re-run to recreate it.\n", logging.INFO)
         exit(1)
     success_panel = Panel.fit(
@@ -261,7 +256,7 @@ def connect_to_plexserver() -> PlexServer:
         try:
             plex = PlexServer(plex_url, token)
         except Unauthorized:
-            raise JHSException("Could not log into plex server with values in .env")
+            raise GDException("Could not log into plex server with values in .env")
     else:
         from plexapi.myplex import MyPlexAccount
         username = os.getenv("PLEX_USERNAME")
@@ -271,10 +266,10 @@ def connect_to_plexserver() -> PlexServer:
         try:
             plex = account.resource(servername).connect()  # returns a PlexServer instance
         except Unauthorized:
-            raise JHSException("Could not log into plex server with values in .env")
+            raise GDException("Could not log into plex server with values in .env")
 
     if not plex:
-        raise JHSException("Could not log into plex server with values in .env")
+        raise GDException("Could not log into plex server with values in .env")
     return plex
 
 
