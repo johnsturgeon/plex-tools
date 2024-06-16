@@ -6,4 +6,3 @@ shazamio==0.6.0
 requests~=2.32.3
 thefuzz==0.22.1
 musicbrainzngs==0.7.1
-pylint==3.2.3
