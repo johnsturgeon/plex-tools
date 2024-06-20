@@ -2,7 +2,6 @@
     Deduplex: De duplicate your plex library!  This script will scan your plex
     library for song duplicates and allow you to fix them.
 """
-import os
 import sys
 import time
 import logging
@@ -19,7 +18,6 @@ from rich.prompt import Prompt, Confirm
 from rich.style import Style
 from rich.table import Table
 from rich.tree import Tree
-
 from plex_utils import setup, GDException
 
 console: Console = Console()
@@ -243,12 +241,6 @@ def main():
         console_log("\n" + str(gd_exception), logging.ERROR)
         console_log("\nPlease delete the .env file and re-run to recreate it.\n", logging.INFO)
         sys.exit(1)
-    success_panel = Panel.fit(
-        f"[green bold]Successfully connected to plex server library"
-        f" \"{os.getenv('MUSIC_LIBRARY_NAME')}\"[/green bold]"
-    )
-    console.print(success_panel)
-    console.print("")
     console.print("")
     songs_with_duplicates, num_tracks = duplicate_finder(the_music_library)
     time.sleep(1)
