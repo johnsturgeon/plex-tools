@@ -1,12 +1,15 @@
+"""
+    Deduplex: De duplicate your plex library!  This script will scan your plex
+    library for song duplicates and allow you to fix them.
+"""
 import os
+import sys
 import time
 import logging
 from typing import List, Dict, Optional
 
 from plexapi.audio import Track
 from plexapi.library import MusicSection
-from plexapi.server import PlexServer
-from plexapi.exceptions import Unauthorized
 from rich.padding import Padding
 from rich.panel import Panel
 from rich.progress import Progress
@@ -22,9 +25,9 @@ from plex_utils import setup, GDException
 console: Console = Console()
 DEFAULT_DUPLICATE_PLAYLIST_NAME = "GoshDarned Duplicates"
 
-
-
+# pylint: disable=too-many-instance-attributes
 class JHSTrack:
+    """ Model class for wrapping Plex library track """
     def __init__(self, track: Track):
         self.track = track
         self.flagged_for_deletion: bool = False
@@ -44,32 +47,44 @@ class JHSTrack:
 
         self.hash_val = str(f"{self.title}{self.artist}{self.album}{self.duration}")
 
-    def is_duplicate(self, other):
-        return self.hash_val == other.hash_val
-
-    def is_identical(self, other):
-        return self.track == other.track
 
     @property
     def star_rating(self) -> str:
+        """
+        Returns:
+            The string of 'stars'
+            (from none to five stars) representing the user_rating // 2
+
+        Examples:
+            * One star (user_rating of 2.0) ⭑
+            * Two stars (user_rating of 4.0) ⭑⭑
+        """
         stars: str = "Unrated"
         if self.user_rating is not None:
             stars = ""
             rating = int(self.user_rating / 2)
-            for i in range(rating):
+            for _ in range(rating):
                 stars += "⭑"
         return stars
 
     @property
-    def user_rating(self):
+    def user_rating(self) -> float:
+        """
+        User Rating is an API call, so we need to lazily init it and cache the result
+        Returns:
+            float: for the rating the user chose for the track from 0.0 - 10.0
+        """
         if self._user_rating:
             return self._user_rating
-        elif self.track.userRating is not None:
+        if self.track.userRating is not None:
             self._user_rating = float(self.track.userRating)
+        else:
+            self._user_rating = 0.0
         return self._user_rating
 
 
 class JHSDuplicateSet:
+    """ Represents a set of tracks that are considered duplicates """
     def __init__(self, duplicate_tracks: List[JHSTrack]):
         self.duplicate_tracks: List[JHSTrack] = duplicate_tracks
         self.title: str = self.duplicate_tracks[0].title
@@ -80,6 +95,15 @@ class JHSDuplicateSet:
 
     @property
     def duration_str(self) -> str:
+        """
+        String representation of duration of the track
+        Returns:
+            formatted string in mm:ss
+        Notes:
+            track duration is 320000 (milliseconds)
+            we / 1000 to get seconds
+            and divmod the result by 60
+        """
         m, s = divmod(self.duration / 1000, 60)
         m = int(m)
         s = int(s)
@@ -98,6 +122,11 @@ class JHSDuplicateSet:
 
     @property
     def ratings_conflict(self) -> bool:
+        """
+        Compare the ratings of our tracks
+        Returns:
+            True if ratings are different, False otherwise
+        """
         conflicting_rating = False
         base_rating = self.duplicate_tracks[0].user_rating
         for track in self.duplicate_tracks:
@@ -107,6 +136,11 @@ class JHSDuplicateSet:
 
     @property
     def play_counts_conflict(self) -> bool:
+        """
+        Compare the playCount of our tracks
+        Returns:
+            True if playCount is different, False otherwise
+        """
         conflicting_play_count = False
         base_play_count = self.duplicate_tracks[0].play_count
         for track in self.duplicate_tracks:
@@ -115,14 +149,23 @@ class JHSDuplicateSet:
         return conflicting_play_count
 
     def toggle_delete(self, index):
-        self.duplicate_tracks[index].flagged_for_deletion = not self.duplicate_tracks[index].flagged_for_deletion
+        """ Toggles the deletion flag of a specific track """
+        self.duplicate_tracks[index].flagged_for_deletion = \
+            not self.duplicate_tracks[index].flagged_for_deletion
 
     def clear_deletes(self):
+        """ Clears the deletion flag for all tracks """
         for track in self.duplicate_tracks:
             track.flagged_for_deletion = False
 
     @property
     def has_track_to_delete(self) -> bool:
+        """
+        Checks all tracks to determine if any are flagged for deletion
+        Returns:
+            True if there are tracks are flagged for deletion, False otherwise
+
+        """
         for track in self.duplicate_tracks:
             if track.flagged_for_deletion:
                 return True
@@ -130,12 +173,22 @@ class JHSDuplicateSet:
 
     @property
     def all_tracks_selected(self):
+        """
+        Checks to determine if every track has been selected for deletion
+        Returns:
+            True if all tracks are flagged for deletion, False otherwise
+        """
         for track in self.duplicate_tracks:
             if not track.flagged_for_deletion:
                 return False
         return True
 
     def flagged_delete_plex_tracks(self) -> List[Track]:
+        """
+        Returns List[Track] where `Track` is a  plexapi.audio.Track object
+        Returns:
+            A list of all Plex tracks that are currently flagged for deletion
+        """
         flagged_tracks: List[Track] = []
         for track in self.duplicate_tracks:
             if track.flagged_for_deletion:
@@ -144,6 +197,11 @@ class JHSDuplicateSet:
 
     @property
     def flagged_delete_jhs_tracks(self) -> List[JHSTrack]:
+        """
+        Returns List[JHSTrack]
+        Returns:
+            A list of all JHSTrack tracks that are currently flagged for deletion
+        """
         flagged_tracks: List[JHSTrack] = []
         for track in self.duplicate_tracks:
             if track.flagged_for_deletion:
@@ -152,6 +210,7 @@ class JHSDuplicateSet:
 
 
 def console_log(message: str, level=logging.NOTSET):
+    """ Deprecated """
     style: Optional[str] = None
     match level:
         case logging.INFO:
@@ -163,8 +222,10 @@ def console_log(message: str, level=logging.NOTSET):
     console.print(message, style=style)
 
 
+# pylint: disable=too-many-branches
+# pylint: disable=too-many-statements
 def main():
-    # Welcome message and info
+    """ Main entry point """
     console.clear()
     panel = Panel.fit(
         "\n[green]Welcome to the [b]Plex Music Duplicate Song Remover[/b][/green]\n"
@@ -181,7 +242,7 @@ def main():
         console.rule()
         console_log("\n" + str(gd_exception), logging.ERROR)
         console_log("\nPlease delete the .env file and re-run to recreate it.\n", logging.INFO)
-        exit(1)
+        sys.exit(1)
     success_panel = Panel.fit(
         f"[green bold]Successfully connected to plex server library"
         f" \"{os.getenv('MUSIC_LIBRARY_NAME')}\"[/green bold]"
@@ -193,13 +254,14 @@ def main():
     time.sleep(1)
     if len(songs_with_duplicates) == 0:
         console.print("Congratulations! You have no duplicates!")
-        exit(0)
+        sys.exit(0)
     else:
         console.print("")
         panel = findings_panel(songs_with_duplicates, num_tracks)
         console.print(panel)
 
-    console.print("\n[green]READY:[/green] Let's clean up the duplicates\nBut first, a couple of questions.\n")
+    console.print("\n[green]READY:[/green] Let's clean up the duplicates\n"
+                  "But first, a couple of questions.\n")
     padded_content: Padding = Padding(
         "[u]Q: What is \"Safe Delete Mode\"?[/u]\n\n"
         "[i]Enabling Safe Mode Delete will add your duplicate tracks"
@@ -209,7 +271,10 @@ def main():
     panel = Panel.fit(padded_content, title="[green]Safe Delete Mode[/green]")
     console.print(panel)
     console.print("")
-    enable_safe_mode: bool = Confirm.ask("Would you like to enable [green]Safe Mode Delete[/green]?", default="y")
+    enable_safe_mode: bool = Confirm.ask(
+        "Would you like to enable [green]Safe Mode Delete[/green]?",
+        default="y"
+    )
     if enable_safe_mode:
         console.print("\nExcellent, [b]Safe Mode Delete[/b] is now [green]ENABLED[/green]")
     else:
@@ -222,9 +287,12 @@ def main():
     answer = Confirm.ask("Ready to continue?", default="y")
     if not answer:
         console.print("Exiting...")
-        exit(0)
+        sys.exit(0)
     choose_duplicates_to_delete(songs_with_duplicates)
-    answer = Confirm.ask("Would you like to review the list of duplicates you've flagged for removal?", default="y")
+    answer = Confirm.ask(
+        "Would you like to review the list of duplicates you've flagged for removal?",
+        default="y"
+    )
     if answer:
         review_tracks: str = ""
         for duplicate_set in songs_with_duplicates:
@@ -236,13 +304,13 @@ def main():
         console.print(f"[green]Finished selecting songs, safe mode enabled,"
                       f" creating playlist: \"{DEFAULT_DUPLICATE_PLAYLIST_NAME}\"")
         add_duplicates_to_playlist(songs_with_duplicates, the_music_library)
-        console.print(f"[green]Playlist created[/green]\nExiting...")
+        console.print("[green]Playlist created[/green]\nExiting...")
     else:
-        console.print(f"Finished selecting songs, safe mode [red]disabled[/red]")
+        console.print("Finished selecting songs, safe mode [red]disabled[/red]")
         answer = Confirm.ask("Continue with delete?", default="y")
         if not answer:
             console.print("Exiting...")
-            exit(0)
+            sys.exit(0)
         delete_duplicates(songs_with_duplicates)
 
 
@@ -258,7 +326,7 @@ def duplicate_finder(music_library: MusicSection) -> (List[JHSDuplicateSet], int
     count: int = len(all_tracks)
     unique_tracks: Dict[str, List[JHSTrack]] = {}
     with Progress() as progress:
-        task1 = progress.add_task(f"Querying Plex Server", total=count)
+        task1 = progress.add_task("Querying Plex Server", total=count)
         track: Track
         for track in all_tracks:
             progress.update(task1, advance=1)
@@ -266,9 +334,9 @@ def duplicate_finder(music_library: MusicSection) -> (List[JHSDuplicateSet], int
             if jhs_track.hash_val not in unique_tracks:
                 unique_tracks[jhs_track.hash_val] = []
             unique_tracks[jhs_track.hash_val].append(jhs_track)
-        task2 = progress.add_task(f"Searching results for duplicates", total=len(unique_tracks))
+        task2 = progress.add_task("Searching results for duplicates", total=len(unique_tracks))
         tracks: List[JHSTrack]
-        for key, tracks in unique_tracks.items():
+        for _, tracks in unique_tracks.items():
             progress.update(task2, advance=1)
             if len(tracks) > 1:
                 duplicate_set: JHSDuplicateSet = JHSDuplicateSet(tracks)
@@ -276,7 +344,13 @@ def duplicate_finder(music_library: MusicSection) -> (List[JHSDuplicateSet], int
     return return_sets, count
 
 
-def choose_duplicates_to_delete(duplicate_sets: List[JHSDuplicateSet]):
+def choose_duplicates_to_delete(duplicate_sets: List[JHSDuplicateSet]) -> None:
+    """
+    Prompt the user for each duplicate set,
+       getting input for which duplicates to select for deletion
+    Args:
+        duplicate_sets:
+    """
     count: int = len(duplicate_sets)
     track_set_index: int = 1
     while True:
@@ -289,19 +363,20 @@ def choose_duplicates_to_delete(duplicate_sets: List[JHSDuplicateSet]):
         choices.append("n")
         choices.append("p")
         choices.append("d")
-        control_prompt: str = "[magenta](n)[/magenta]ext, [magenta](p)[/magenta]revious, [magenta](d)[/magenta]one"
+        control_prompt: str = ("[magenta](n)[/magenta]ext, "
+                               "[magenta](p)[/magenta]revious, "
+                               "[magenta](d)[/magenta]one")
         panel = duplicate_panel(track_set, count, track_set_index)
         console.print(panel)
         if track_set.all_tracks_selected:
             warn = Panel("WARNING: You have chosen every track to be deleted", style="yellow")
             console.print(warn)
-        track: JHSTrack
-        answer = Prompt.ask(f"[blue]Choose a track number to toggle selection:[/blue]\n" +
+        answer = Prompt.ask("[blue]Choose a track number to toggle selection:[/blue]\n" +
                             f"Tracks: [magenta]{track_num_prompt}[/magenta] {control_prompt}",
                             choices=choices, default="n", show_choices=False)
         if answer == 'd':
             break
-        elif answer == 'p':
+        if answer == 'p':
             if track_set_index > 1:
                 track_set_index -= 1
                 continue
@@ -315,6 +390,11 @@ def choose_duplicates_to_delete(duplicate_sets: List[JHSDuplicateSet]):
 
 
 def delete_duplicates(duplicate_sets: List[JHSDuplicateSet]) -> None:
+    """
+    Delete duplicate tracks from a list
+    Args:
+        duplicate_sets:
+    """
     delete_tracks: List[JHSTrack] = []
     for duplicate_set in duplicate_sets:
         delete_tracks += duplicate_set.flagged_delete_jhs_tracks
@@ -323,7 +403,16 @@ def delete_duplicates(duplicate_sets: List[JHSDuplicateSet]) -> None:
         jhs_track.track.delete()
 
 
-def add_duplicates_to_playlist(duplicate_sets: List[JHSDuplicateSet], music_library: MusicSection) -> None:
+def add_duplicates_to_playlist(
+        duplicate_sets: List[JHSDuplicateSet],
+        music_library: MusicSection
+) -> None:
+    """
+    Copies the tracks that are flagged to delete to a playlist
+    Args:
+        duplicate_sets:
+        music_library:
+    """
     delete_tracks: List[Track] = []
     for duplicate_set in duplicate_sets:
         delete_tracks += duplicate_set.flagged_delete_plex_tracks()
@@ -332,6 +421,11 @@ def add_duplicates_to_playlist(duplicate_sets: List[JHSDuplicateSet], music_libr
 
 # =======  View methods  ========
 def instructions_panel() -> Panel:
+    """
+    Instructions for the script
+    Returns:
+        rich.panel.Panel
+    """
     t1 = "[u]First the review process[/u]"
     m1 = Markdown(
         "*  Review the song details for each duplicate found\n"
@@ -360,9 +454,19 @@ def instructions_panel() -> Panel:
 
 
 def findings_panel(songs_with_duplicates, num_tracks) -> Panel:
+    """
+    Findings for duplicate tracks detected
+    Args:
+        songs_with_duplicates:
+        num_tracks:
+    Returns:
+        rich.panel.Pane
+    """
     padded_content: Padding = Padding(
-        f":heavy_check_mark: [b]Total Tracks Searched: [green]{num_tracks}[/green][/b]\n"
-        f":heavy_check_mark: [b]Total Tracks with Duplicates: [green]{len(songs_with_duplicates)}[/green][/b]", (1, 3)
+        f":heavy_check_mark: [b]Total Tracks Searched: "
+        f"[green]{num_tracks}[/green][/b]\n"
+        f":heavy_check_mark: [b]Total Tracks with Duplicates: "
+        f"[green]{len(songs_with_duplicates)}[/green][/b]", (1, 3)
     )
     return Panel.fit(
         padded_content,
@@ -371,13 +475,14 @@ def findings_panel(songs_with_duplicates, num_tracks) -> Panel:
 
 
 def duplicate_panel(track_set: JHSDuplicateSet, count, index) -> Panel:
+    """ Panel for one song and all it's duplicate tracks"""
     tree = Tree(f"[black on white] {index}/{count} [/black on white]: [blue]Song Details[/blue]")
     tree.add(f"[green]Album:[/green] {track_set.album}")
     tree.add(f"[green]Artist:[/green] {track_set.artist}")
     tree.add(f"[green]Duration:[/green] {track_set.duration_str}")
     tree.add(f"[green]Duplicates ([i]including original[/i]):[/green] {track_set.duplicate_count}")
     if track_set.has_conflicting_metadata:
-        tree.add(f"[yellow]Metadata: Tracks have some conflicting metadata[/yellow]")
+        tree.add("[yellow]Metadata: Tracks have some conflicting metadata[/yellow]")
     table = Table(show_header=True, header_style="bold magenta")
     table.add_column("Ver", justify="center")
     table.add_column("Date Added")
