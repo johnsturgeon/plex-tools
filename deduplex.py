@@ -1,14 +1,12 @@
 import os
 import time
 import logging
-from pathlib import Path
 from typing import List, Dict, Optional
 
-from dotenv import load_dotenv, set_key
 from plexapi.audio import Track
-from plexapi.library import Library, MusicSection
+from plexapi.library import MusicSection
 from plexapi.server import PlexServer
-from plexapi.exceptions import Unauthorized, NotFound
+from plexapi.exceptions import Unauthorized
 from rich.padding import Padding
 from rich.panel import Panel
 from rich.progress import Progress
@@ -19,12 +17,11 @@ from rich.style import Style
 from rich.table import Table
 from rich.tree import Tree
 
+from plex_utils import setup, GDException
+
 console: Console = Console()
 DEFAULT_DUPLICATE_PLAYLIST_NAME = "GoshDarned Duplicates"
 
-
-class JHSException(Exception):
-    pass
 
 
 class JHSTrack:
@@ -179,10 +176,10 @@ def main():
 
     # set up the environment / and get the music library
     try:
-        the_music_library: MusicSection = setup()
-    except JHSException as jhs_exception:
+        the_music_library: MusicSection = setup(console)
+    except GDException as gd_exception:
         console.rule()
-        console_log("\n" + str(jhs_exception), logging.ERROR)
+        console_log("\n" + str(gd_exception), logging.ERROR)
         console_log("\nPlease delete the .env file and re-run to recreate it.\n", logging.INFO)
         exit(1)
     success_panel = Panel.fit(
@@ -247,91 +244,6 @@ def main():
             console.print("Exiting...")
             exit(0)
         delete_duplicates(songs_with_duplicates)
-
-
-def setup() -> MusicSection:
-    """
-    Sets up the environment, logs in to the Plex server and returns the library.
-    Returns:
-        Library: Library object for the music library
-    Throws:
-        Unauthorized
-
-    """
-    found_env = load_dotenv()
-
-    # if there is an existing .env, let's use it to try and log in
-    if found_env:
-        console_log("\n:information: Found an existing .env file, checking it for valid login info")
-    else:
-        #  write code to get ENV vars here
-        console.print("\n:information: No .env file found, let's create one and save it in the current directory.")
-        choices = ["u", "t"]
-        panel = Panel(
-            "Information about how to log in to your Plex Server for API access can be found "
-            "here: https://python-plexapi.readthedocs.io/en/stable/introduction.html#getting-a-plexserver-instance",
-            style="blue"
-        )
-        console.print(panel)
-        answer = Prompt.ask("How would you like to access your server?\n"
-                            "[magenta](u):[/magenta] Username/Password, or [magenta](t):[/magenta] Token?",
-                            choices=choices)
-        env_file_path = Path(".env")
-        # Create the file if it does not exist.
-        env_file_path.touch(mode=0o600, exist_ok=True)
-        if answer == "u":
-            username = Prompt.ask("What is your username?")
-            password = Prompt.ask("What is your password?", password=True)
-            servername = Prompt.ask("What is your server?")
-            set_key(dotenv_path=env_file_path, key_to_set="PLEX_USERNAME", value_to_set=username)
-            set_key(dotenv_path=env_file_path, key_to_set="PLEX_PASSWORD", value_to_set=password)
-            set_key(dotenv_path=env_file_path, key_to_set="PLEX_SERVERNAME", value_to_set=servername)
-        else:
-            token = Prompt.ask("What is your token?")
-            url = Prompt.ask("What is your Plex Server URL [i](ex: http://192.168.1.44:32400)[/i]?")
-            set_key(dotenv_path=env_file_path, key_to_set="PLEX_TOKEN", value_to_set=token)
-            set_key(dotenv_path=env_file_path, key_to_set="PLEX_URL", value_to_set=url)
-        console.print("\n:information: Login information saved values to .env file\n")
-        music_library = Prompt.ask("What is the name of your Music library?")
-        set_key(dotenv_path=env_file_path, key_to_set="MUSIC_LIBRARY_NAME", value_to_set=music_library)
-        load_dotenv()
-    plex = connect_to_plexserver()
-
-    library_name: str = os.getenv("MUSIC_LIBRARY_NAME")
-    if not library_name:
-        raise JHSException("MUSIC_LIBRARY_NAME environment variable is missing.")
-    try:
-        library: MusicSection = plex.library.section(library_name)
-    except NotFound:
-        raise JHSException(f"Plex Library \"{library_name}\" not found")
-    return library
-
-
-def connect_to_plexserver() -> PlexServer:
-    token = os.getenv("PLEX_TOKEN")
-    # if we're using token based auth, then all we need is the base url
-    if token:
-        console.print("")
-        console_log(":information: Found a Plex Token, trying to log in with that\n")
-        plex_url = os.getenv("PLEX_URL")
-        try:
-            plex = PlexServer(plex_url, token)
-        except Unauthorized:
-            raise JHSException("Could not log into plex server with values in .env")
-    else:
-        from plexapi.myplex import MyPlexAccount
-        username = os.getenv("PLEX_USERNAME")
-        password = os.getenv("PLEX_PASSWORD")
-        servername = os.getenv("PLEX_SERVERNAME")
-        account = MyPlexAccount(username, password)
-        try:
-            plex = account.resource(servername).connect()  # returns a PlexServer instance
-        except Unauthorized:
-            raise JHSException("Could not log into plex server with values in .env")
-
-    if not plex:
-        raise JHSException("Could not log into plex server with values in .env")
-    return plex
 
 
 def duplicate_finder(music_library: MusicSection) -> (List[JHSDuplicateSet], int):
