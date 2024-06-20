@@ -246,33 +246,6 @@ def main():
         delete_duplicates(songs_with_duplicates)
 
 
-def connect_to_plexserver() -> PlexServer:
-    token = os.getenv("PLEX_TOKEN")
-    # if we're using token based auth, then all we need is the base url
-    if token:
-        console.print("")
-        console_log(":information: Found a Plex Token, trying to log in with that\n")
-        plex_url = os.getenv("PLEX_URL")
-        try:
-            plex = PlexServer(plex_url, token)
-        except Unauthorized:
-            raise GDException("Could not log into plex server with values in .env")
-    else:
-        from plexapi.myplex import MyPlexAccount
-        username = os.getenv("PLEX_USERNAME")
-        password = os.getenv("PLEX_PASSWORD")
-        servername = os.getenv("PLEX_SERVERNAME")
-        account = MyPlexAccount(username, password)
-        try:
-            plex = account.resource(servername).connect()  # returns a PlexServer instance
-        except Unauthorized:
-            raise GDException("Could not log into plex server with values in .env")
-
-    if not plex:
-        raise GDException("Could not log into plex server with values in .env")
-    return plex
-
-
 def duplicate_finder(music_library: MusicSection) -> (List[JHSDuplicateSet], int):
     """
     Args:
