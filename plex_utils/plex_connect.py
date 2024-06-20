@@ -1,21 +1,28 @@
+""" Plex Connect will use (or create) a .env file to connect to your Plex server. """
 import os
+from pathlib import Path
 
-from dotenv import load_dotenv, set_key
+from dotenv import load_dotenv, set_key, find_dotenv
 from plexapi.exceptions import Unauthorized, NotFound
 from plexapi.library import MusicSection
 from plexapi.server import PlexServer
-from plexapi.myplex import MyPlexAccount, MyPlexResource
+from plexapi.myplex import MyPlexAccount
 from rich.console import Console
 from rich.panel import Panel
 from rich.prompt import Prompt
-from pathlib import Path
 
 
 class GDException(Exception):
-    pass
+    """ Generic exception class"""
 
 
 def connect_to_plexserver(console: Console) -> PlexServer:
+    """
+    Connects to a PlexServer and returns the PlexServer object.
+    Args:
+        console (Console): Console object to connect to.
+    Returns: PlexServer
+    """
     token = os.getenv("PLEX_TOKEN")
     # if we're using token based auth, then all we need is the base url
     if token:
@@ -24,14 +31,17 @@ def connect_to_plexserver(console: Console) -> PlexServer:
         plex_url = os.getenv("PLEX_URL")
         try:
             plex_server: PlexServer = PlexServer(plex_url, token)
-        except Unauthorized:
-            raise GDException("Could not log into plex server with values in .env")
+        except Unauthorized as exc:
+            raise GDException("Could not log into plex server with values in .env") from exc
     else:
         username = os.getenv("PLEX_USERNAME")
         password = os.getenv("PLEX_PASSWORD")
         servername = os.getenv("PLEX_SERVERNAME")
         try:
-            plex_server: PlexServer = MyPlexAccount(username, password).resource(servername).connect()
+            plex_server: PlexServer = MyPlexAccount(
+                username,
+                password
+            ).resource(servername).connect()
         except (AttributeError, Unauthorized) as e:
             raise GDException("Could not log into plex server with values in .env") from e
 
@@ -58,14 +68,18 @@ def _add_music_library_to_env_file(env_file_path):
 
 def _get_plex_login_method(console) -> str:
     choices = ["u", "t"]
+    # pylint: disable=line-too-long
     panel = Panel(
-        "Information about how to log in to your Plex Server for API access can be found "
+        "Information about how to log in to your "
+        "Plex Server for API access can be found "
         "here: https://python-plexapi.readthedocs.io/en/stable/introduction.html#getting-a-plexserver-instance",
         style="blue"
     )
+    # pylint: enable=line-too-long
     console.print(panel)
     answer = Prompt.ask("How would you like to access your server?\n"
-                        "[magenta](u):[/magenta] Username/Password, or [magenta](t):[/magenta] Token?",
+                        "[magenta](u):[/magenta] "
+                        "Username/Password, or [magenta](t):[/magenta] Token?",
                         choices=choices)
     return answer
 
@@ -73,8 +87,8 @@ def _get_plex_library_section(plex, library_name) -> MusicSection:
     section: MusicSection
     try:
         section = plex.library.section(library_name)
-    except NotFound:
-        raise GDException(f"Could not find library \"{library_name}\" on your plexserver")
+    except NotFound as exc:
+        raise GDException(f"Could not find library \"{library_name}\" on your plexserver") from exc
     return section
 
 
@@ -88,11 +102,14 @@ def load_or_create_dotenv(console):
         Unauthorized
 
     """
-    found_env = load_dotenv()
+    found_env = load_dotenv(find_dotenv())
     if found_env:
-        console.print("\n:information: Found an existing .env file, checking it for valid login info")
+        console.print("\n:information: Found an existing .env file, "
+                      "checking it for valid login info")
     else:
-        console.print("\n:information: No .env file found, let's create one and save it in the current directory.")
+        console.print("\n:information: No .env file found, "
+                      "let's create one and save it in the current directory.")
+        Path().resolve()
         env_file_path = Path(".env")
         env_file_path.touch(mode=0o600, exist_ok=True)
         answer = _get_plex_login_method(console)

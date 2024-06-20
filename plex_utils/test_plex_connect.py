@@ -1,12 +1,12 @@
-from unittest.mock import patch, Mock, call, MagicMock, PropertyMock
+""" Unit tests for plex_connect"""
+from unittest.mock import patch, Mock, call, PropertyMock
 
+# pylint: disable=missing-function-docstring
 import pytest
-from callee import InstanceOf, StartsWith, String, ShorterThan, EndsWith
-from plexapi.exceptions import Unauthorized, NotFound
-from rich.panel import Panel
-
+from callee import StartsWith
+from plexapi.exceptions import Unauthorized
+# pylint: disable=relative-beyond-top-level
 from .plex_connect import load_or_create_dotenv, connect_to_plexserver, GDException, setup
-
 
 @patch('plex_utils.plex_connect.load_dotenv')
 def test_create_dotenv_existing_env(mock_load_dotenv):
@@ -163,6 +163,7 @@ def test_connect_to_plex_server_with_passwd_3(
 @patch('plex_utils.plex_connect.Panel.fit')
 @patch('plex_utils.plex_connect.connect_to_plexserver')
 @patch('plex_utils.plex_connect.load_or_create_dotenv')
+# pylint: disable=unused-argument
 def test_setup(
         mock_load_or_create_dotenv,
         mock_connect_to_plexserver,
@@ -176,7 +177,6 @@ def test_setup(
         call(''),
         call('Log in [green]Successful[/green]')
     ]
-
     mock_os_getenv.return_value = "Music"
     setup(console=mock_console)
     mock_console.print.assert_has_calls(console_calls)
