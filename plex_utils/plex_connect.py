@@ -2,7 +2,7 @@
 import os
 from pathlib import Path
 
-from dotenv import load_dotenv, set_key
+from dotenv import load_dotenv, set_key, find_dotenv
 from plexapi.exceptions import Unauthorized, NotFound
 from plexapi.library import MusicSection
 from plexapi.server import PlexServer
@@ -102,13 +102,14 @@ def load_or_create_dotenv(console):
         Unauthorized
 
     """
-    found_env = load_dotenv()
+    found_env = load_dotenv(find_dotenv())
     if found_env:
         console.print("\n:information: Found an existing .env file, "
                       "checking it for valid login info")
     else:
         console.print("\n:information: No .env file found, "
                       "let's create one and save it in the current directory.")
+        Path().resolve()
         env_file_path = Path(".env")
         env_file_path.touch(mode=0o600, exist_ok=True)
         answer = _get_plex_login_method(console)
