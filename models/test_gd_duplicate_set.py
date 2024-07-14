@@ -1,5 +1,5 @@
 """Test for GD Duplicate Set"""
-from unittest.mock import Mock, MagicMock, PropertyMock, call, create_autospec
+from unittest.mock import Mock, MagicMock
 
 from plexapi.audio import Track
 
@@ -94,4 +94,3 @@ def test_flagged_delete_plex_tracks():
     # now we check the plex tracks
     flagged_gd_tracks = duplicate_set.flagged_delete_gd_plex_tracks
     assert parent_list == flagged_gd_tracks
-
