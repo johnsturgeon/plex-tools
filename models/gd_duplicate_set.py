@@ -16,6 +16,32 @@ class GDDuplicateSet:
         self.duration: int = self.duplicate_tracks[0].duration
         self.duplicate_count: int = len(self.duplicate_tracks)
 
+    def _ratings_conflict(self) -> bool:
+        """
+        Compare the ratings of our tracks
+        Returns:
+            True if ratings are different, False otherwise
+        """
+        conflicting_rating = False
+        base_rating = self.duplicate_tracks[0].user_rating
+        for track in self.duplicate_tracks:
+            if base_rating != track.user_rating:
+                conflicting_rating = True
+        return conflicting_rating
+
+    def _play_counts_conflict(self) -> bool:
+        """
+        Compare the playCount of our tracks
+        Returns:
+            True if playCount is different, False otherwise
+        """
+        conflicting_play_count = False
+        base_play_count = self.duplicate_tracks[0].play_count
+        for track in self.duplicate_tracks:
+            if base_play_count != track.play_count:
+                conflicting_play_count = True
+        return conflicting_play_count
+
     @property
     def duration_str(self) -> str:
         """
@@ -42,32 +68,6 @@ class GDDuplicateSet:
 
         """
         return self._play_counts_conflict() or self._ratings_conflict()
-
-    def _ratings_conflict(self) -> bool:
-        """
-        Compare the ratings of our tracks
-        Returns:
-            True if ratings are different, False otherwise
-        """
-        conflicting_rating = False
-        base_rating = self.duplicate_tracks[0].user_rating
-        for track in self.duplicate_tracks:
-            if base_rating != track.user_rating:
-                conflicting_rating = True
-        return conflicting_rating
-
-    def _play_counts_conflict(self) -> bool:
-        """
-        Compare the playCount of our tracks
-        Returns:
-            True if playCount is different, False otherwise
-        """
-        conflicting_play_count = False
-        base_play_count = self.duplicate_tracks[0].play_count
-        for track in self.duplicate_tracks:
-            if base_play_count != track.play_count:
-                conflicting_play_count = True
-        return conflicting_play_count
 
     def toggle_delete(self, index):
         """ Toggles the deletion flag of a specific track """
@@ -100,6 +100,7 @@ class GDDuplicateSet:
                 return False
         return True
 
+    @property
     def flagged_delete_plex_tracks(self) -> List[Track]:
         """
         Returns List[Track] where `Track` is a  plexapi.audio.Track object

@@ -227,7 +227,7 @@ def add_duplicates_to_playlist(
     """
     delete_tracks: List[Track] = []
     for duplicate_set in duplicate_sets:
-        delete_tracks += duplicate_set.flagged_delete_plex_tracks()
+        delete_tracks += duplicate_set.flagged_delete_plex_tracks
     music_library.createPlaylist(title=DEFAULT_DUPLICATE_PLAYLIST_NAME, items=delete_tracks)
 
 
