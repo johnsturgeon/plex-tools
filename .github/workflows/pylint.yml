@@ -32,10 +32,10 @@ jobs:
     - name: Lint with pylint
       run: |
         # stop the build if there are Python syntax errors or undefined names
-        pylint
+        pylint $(git ls-files '*.py')
     - name: Test with pytest
       run: |
         pytest
     - name: Flake8
       run: |
-        flake8 --count --exit-zero --max-complexity=10 --max-line-length=100 --statistics
+        flake8 $(git ls-files '*.py') --count --exit-zero --max-complexity=10 --max-line-length=100 --statistics
