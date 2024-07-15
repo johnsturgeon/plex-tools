@@ -29,10 +29,9 @@ class GDPlexTrack:
     def __str__(self):
         return f"Title: {self.title}, Artist: {self.artist}, Album: {self.album}"
 
-    def durations_are_close(self, duration, variance = 5000):
+    def durations_are_close(self, duration, variance=5000):
         """ durations are in milliseconds """
         return self.duration - variance <= duration <= self.duration + variance
-
 
     @property
     def star_rating(self) -> str:

@@ -3,7 +3,7 @@ from typing import List
 
 from plexapi.audio import Track
 
-from .gd_plex_track import  GDPlexTrack
+from .gd_plex_track import GDPlexTrack
 
 
 class GDDuplicateSet:
@@ -73,7 +73,6 @@ class GDDuplicateSet:
         """ Toggles the deletion flag of a specific track """
         self.duplicate_tracks[index].flagged_for_deletion = \
             not self.duplicate_tracks[index].flagged_for_deletion
-
 
     @property
     def has_track_to_delete(self) -> bool:

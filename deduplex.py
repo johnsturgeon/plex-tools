@@ -26,7 +26,6 @@ console: Console = Console()
 DEFAULT_DUPLICATE_PLAYLIST_NAME = "GoshDarned Duplicates"
 
 
-
 def console_log(message: str, level=logging.NOTSET):
     """ Deprecated """
     style: Optional[str] = None
@@ -42,7 +41,8 @@ def console_log(message: str, level=logging.NOTSET):
 
 # pylint: disable=too-many-branches
 # pylint: disable=too-many-statements
-def main():
+def main(  # noqa: C901
+):
     """ Main entry point """
     console.clear()
     panel = Panel.fit(
