@@ -69,6 +69,7 @@ def _add_music_library_to_env_file(env_file_path):
 def _get_plex_login_method(console) -> str:
     choices = ["u", "t"]
     # pylint: disable=line-too-long
+    # flake8: noqa: E501
     panel = Panel(
         "Information about how to log in to your "
         "Plex Server for API access can be found "
@@ -82,6 +83,7 @@ def _get_plex_login_method(console) -> str:
                         "Username/Password, or [magenta](t):[/magenta] Token?",
                         choices=choices)
     return answer
+
 
 def _get_plex_library_section(plex, library_name) -> MusicSection:
     section: MusicSection
@@ -122,6 +124,7 @@ def load_or_create_dotenv(console):
         _add_music_library_to_env_file(env_file_path)
 
         load_dotenv()
+
 
 def setup(console: Console) -> MusicSection:
     """

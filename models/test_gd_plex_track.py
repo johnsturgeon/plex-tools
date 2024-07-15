@@ -40,6 +40,7 @@ def test_durations_are_close():
     assert gd_plex_track.durations_are_close(322000, variance=1999) is False
     assert gd_plex_track.durations_are_close(322000, variance=2000) is True
 
+
 def test_star_rating():
     mock_track = MagicMock(userRating=None)
     gd_plex_track = GDPlexTrack(mock_track)
@@ -70,7 +71,6 @@ def test_star_rating():
     mock_track = MagicMock(userRating=3.0)
     gd_plex_track = GDPlexTrack(mock_track)
     assert gd_plex_track.star_rating == '⭑'
-
 
 
 def test_user_rating():
