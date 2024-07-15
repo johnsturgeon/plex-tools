@@ -18,193 +18,13 @@ from rich.prompt import Prompt, Confirm
 from rich.style import Style
 from rich.table import Table
 from rich.tree import Tree
+
+from models import GDPlexTrack, GDDuplicateSet
 from plex_utils import setup, GDException
 
 console: Console = Console()
 DEFAULT_DUPLICATE_PLAYLIST_NAME = "GoshDarned Duplicates"
 
-# pylint: disable=too-many-instance-attributes
-class JHSTrack:
-    """ Model class for wrapping Plex library track """
-    def __init__(self, track: Track):
-        self.track = track
-        self.flagged_for_deletion: bool = False
-        self.title = self.track.title
-        self.artist = self.track.grandparentTitle
-        self.album = self.track.parentTitle
-        self.duration = self.track.duration
-        self.key = self.track.key
-        self.audio_codec = self.track.media[0].audioCodec
-        self.added_at = str(self.track.addedAt)
-        self._user_rating: Optional[float] = None
-        self.play_count = str(self.track.viewCount)
-        if self.track.media[0].parts[0].file is None:
-            self.filepath = "TIDAL"
-        else:
-            self.filepath = self.track.media[0].parts[0].file.strip()
-
-        self.hash_val = str(f"{self.title}{self.artist}{self.album}{self.duration}")
-
-
-    @property
-    def star_rating(self) -> str:
-        """
-        Returns:
-            The string of 'stars'
-            (from none to five stars) representing the user_rating // 2
-
-        Examples:
-            * One star (user_rating of 2.0) ⭑
-            * Two stars (user_rating of 4.0) ⭑⭑
-        """
-        stars: str = "Unrated"
-        if self.user_rating is not None:
-            stars = ""
-            rating = int(self.user_rating / 2)
-            for _ in range(rating):
-                stars += "⭑"
-        return stars
-
-    @property
-    def user_rating(self) -> float:
-        """
-        User Rating is an API call, so we need to lazily init it and cache the result
-        Returns:
-            float: for the rating the user chose for the track from 0.0 - 10.0
-        """
-        if self._user_rating:
-            return self._user_rating
-        if self.track.userRating is not None:
-            self._user_rating = float(self.track.userRating)
-        else:
-            self._user_rating = 0.0
-        return self._user_rating
-
-
-class JHSDuplicateSet:
-    """ Represents a set of tracks that are considered duplicates """
-    def __init__(self, duplicate_tracks: List[JHSTrack]):
-        self.duplicate_tracks: List[JHSTrack] = duplicate_tracks
-        self.title: str = self.duplicate_tracks[0].title
-        self.artist: str = self.duplicate_tracks[0].artist
-        self.album: str = self.duplicate_tracks[0].album
-        self.duration: int = self.duplicate_tracks[0].duration
-        self.duplicate_count: int = len(self.duplicate_tracks)
-
-    @property
-    def duration_str(self) -> str:
-        """
-        String representation of duration of the track
-        Returns:
-            formatted string in mm:ss
-        Notes:
-            track duration is 320000 (milliseconds)
-            we / 1000 to get seconds
-            and divmod the result by 60
-        """
-        m, s = divmod(self.duration / 1000, 60)
-        m = int(m)
-        s = int(s)
-        return f"{m}m{s}s"
-
-    @property
-    def has_conflicting_metadata(self) -> bool:
-        """
-        Compare the following metadata to see if there are conflicts:
-          * Rating (userRating)
-          * playCount (viewCount)
-        Returns:
-
-        """
-        return self.play_counts_conflict or self.ratings_conflict
-
-    @property
-    def ratings_conflict(self) -> bool:
-        """
-        Compare the ratings of our tracks
-        Returns:
-            True if ratings are different, False otherwise
-        """
-        conflicting_rating = False
-        base_rating = self.duplicate_tracks[0].user_rating
-        for track in self.duplicate_tracks:
-            if base_rating != track.user_rating:
-                conflicting_rating = True
-        return conflicting_rating
-
-    @property
-    def play_counts_conflict(self) -> bool:
-        """
-        Compare the playCount of our tracks
-        Returns:
-            True if playCount is different, False otherwise
-        """
-        conflicting_play_count = False
-        base_play_count = self.duplicate_tracks[0].play_count
-        for track in self.duplicate_tracks:
-            if base_play_count != track.play_count:
-                conflicting_play_count = True
-        return conflicting_play_count
-
-    def toggle_delete(self, index):
-        """ Toggles the deletion flag of a specific track """
-        self.duplicate_tracks[index].flagged_for_deletion = \
-            not self.duplicate_tracks[index].flagged_for_deletion
-
-    def clear_deletes(self):
-        """ Clears the deletion flag for all tracks """
-        for track in self.duplicate_tracks:
-            track.flagged_for_deletion = False
-
-    @property
-    def has_track_to_delete(self) -> bool:
-        """
-        Checks all tracks to determine if any are flagged for deletion
-        Returns:
-            True if there are tracks are flagged for deletion, False otherwise
-
-        """
-        for track in self.duplicate_tracks:
-            if track.flagged_for_deletion:
-                return True
-        return False
-
-    @property
-    def all_tracks_selected(self):
-        """
-        Checks to determine if every track has been selected for deletion
-        Returns:
-            True if all tracks are flagged for deletion, False otherwise
-        """
-        for track in self.duplicate_tracks:
-            if not track.flagged_for_deletion:
-                return False
-        return True
-
-    def flagged_delete_plex_tracks(self) -> List[Track]:
-        """
-        Returns List[Track] where `Track` is a  plexapi.audio.Track object
-        Returns:
-            A list of all Plex tracks that are currently flagged for deletion
-        """
-        flagged_tracks: List[Track] = []
-        for track in self.duplicate_tracks:
-            if track.flagged_for_deletion:
-                flagged_tracks.append(track.track)
-        return flagged_tracks
-
-    @property
-    def flagged_delete_jhs_tracks(self) -> List[JHSTrack]:
-        """
-        Returns List[JHSTrack]
-        Returns:
-            A list of all JHSTrack tracks that are currently flagged for deletion
-        """
-        flagged_tracks: List[JHSTrack] = []
-        for track in self.duplicate_tracks:
-            if track.flagged_for_deletion:
-                flagged_tracks.append(track)
-        return flagged_tracks
 
 
 def console_log(message: str, level=logging.NOTSET):
@@ -288,8 +108,8 @@ def main():
     if answer:
         review_tracks: str = ""
         for duplicate_set in songs_with_duplicates:
-            duplicate: JHSTrack
-            for duplicate in duplicate_set.flagged_delete_jhs_tracks:
+            duplicate: GDPlexTrack
+            for duplicate in duplicate_set.flagged_delete_gd_plex_tracks:
                 review_tracks += f"*  \"{duplicate.title}\" - {duplicate.filepath}\n"
         console.print(Markdown(review_tracks))
     if enable_safe_mode:
@@ -306,37 +126,37 @@ def main():
         delete_duplicates(songs_with_duplicates)
 
 
-def duplicate_finder(music_library: MusicSection) -> (List[JHSDuplicateSet], int):
+def duplicate_finder(music_library: MusicSection) -> (List[GDDuplicateSet], int):
     """
     Args:
         music_library:
     Returns:
         a list of sets of tracks that have duplicate tracks.
     """
-    return_sets: List[JHSDuplicateSet] = []
+    return_sets: List[GDDuplicateSet] = []
     all_tracks = music_library.searchTracks()
     count: int = len(all_tracks)
-    unique_tracks: Dict[str, List[JHSTrack]] = {}
+    unique_tracks: Dict[str, List[GDPlexTrack]] = {}
     with Progress() as progress:
         task1 = progress.add_task("Querying Plex Server", total=count)
         track: Track
         for track in all_tracks:
             progress.update(task1, advance=1)
-            jhs_track: JHSTrack = JHSTrack(track)
-            if jhs_track.hash_val not in unique_tracks:
-                unique_tracks[jhs_track.hash_val] = []
-            unique_tracks[jhs_track.hash_val].append(jhs_track)
+            gd_track: GDPlexTrack = GDPlexTrack(track)
+            if gd_track.hash_val not in unique_tracks:
+                unique_tracks[gd_track.hash_val] = []
+            unique_tracks[gd_track.hash_val].append(gd_track)
         task2 = progress.add_task("Searching results for duplicates", total=len(unique_tracks))
-        tracks: List[JHSTrack]
+        tracks: List[GDPlexTrack]
         for _, tracks in unique_tracks.items():
             progress.update(task2, advance=1)
             if len(tracks) > 1:
-                duplicate_set: JHSDuplicateSet = JHSDuplicateSet(tracks)
+                duplicate_set: GDDuplicateSet = GDDuplicateSet(tracks)
                 return_sets.append(duplicate_set)
     return return_sets, count
 
 
-def choose_duplicates_to_delete(duplicate_sets: List[JHSDuplicateSet]) -> None:
+def choose_duplicates_to_delete(duplicate_sets: List[GDDuplicateSet]) -> None:
     """
     Prompt the user for each duplicate set,
        getting input for which duplicates to select for deletion
@@ -381,22 +201,22 @@ def choose_duplicates_to_delete(duplicate_sets: List[JHSDuplicateSet]) -> None:
             continue
 
 
-def delete_duplicates(duplicate_sets: List[JHSDuplicateSet]) -> None:
+def delete_duplicates(duplicate_sets: List[GDDuplicateSet]) -> None:
     """
     Delete duplicate tracks from a list
     Args:
         duplicate_sets:
     """
-    delete_tracks: List[JHSTrack] = []
+    delete_tracks: List[GDPlexTrack] = []
     for duplicate_set in duplicate_sets:
-        delete_tracks += duplicate_set.flagged_delete_jhs_tracks
-    for jhs_track in delete_tracks:
-        console.print(f"Removing \"{jhs_track.title}\" - {jhs_track.filepath}\n")
-        jhs_track.track.delete()
+        delete_tracks += duplicate_set.flagged_delete_gd_plex_tracks
+    for gd_track in delete_tracks:
+        console.print(f"Removing \"{gd_track.title}\" - {gd_track.filepath}\n")
+        gd_track.track.delete()
 
 
 def add_duplicates_to_playlist(
-        duplicate_sets: List[JHSDuplicateSet],
+        duplicate_sets: List[GDDuplicateSet],
         music_library: MusicSection
 ) -> None:
     """
@@ -407,7 +227,7 @@ def add_duplicates_to_playlist(
     """
     delete_tracks: List[Track] = []
     for duplicate_set in duplicate_sets:
-        delete_tracks += duplicate_set.flagged_delete_plex_tracks()
+        delete_tracks += duplicate_set.flagged_delete_plex_tracks
     music_library.createPlaylist(title=DEFAULT_DUPLICATE_PLAYLIST_NAME, items=delete_tracks)
 
 
@@ -466,7 +286,7 @@ def findings_panel(songs_with_duplicates, num_tracks) -> Panel:
     )
 
 
-def duplicate_panel(track_set: JHSDuplicateSet, count, index) -> Panel:
+def duplicate_panel(track_set: GDDuplicateSet, count, index) -> Panel:
     """ Panel for one song and all it's duplicate tracks"""
     tree = Tree(f"[black on white] {index}/{count} [/black on white]: [blue]Song Details[/blue]")
     tree.add(f"[green]Album:[/green] {track_set.album}")
