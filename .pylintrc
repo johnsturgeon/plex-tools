@@ -68,8 +68,8 @@ ignored-modules=
 
 # Python code to execute, usually for sys.path manipulation such as
 # pygtk.require().
-init-hook='import sys; sys.path.append("plex_utils")'
-
+# init-hook='import sys; sys.path.append("plex_utils"); sys.path.append("models")'
+init-hook="import os, sys; sys.path.append(os.path.dirname("."))"
 # Use multiple processes to speed up Pylint. Specifying 0 will auto-detect the
 # number of processors available to use, and will cap the count on Windows to
 # avoid hangs.
