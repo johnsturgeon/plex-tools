@@ -4,7 +4,6 @@
 """
 import sys
 import time
-import logging
 from typing import List, Dict, Optional
 
 from plexapi.audio import Track
@@ -26,24 +25,8 @@ console: Console = Console()
 DEFAULT_DUPLICATE_PLAYLIST_NAME = "GoshDarned Duplicates"
 
 
-def console_log(message: str, level=logging.NOTSET):
-    """ Deprecated """
-    style: Optional[str] = None
-    match level:
-        case logging.INFO:
-            style = "blue"
-        case logging.WARN:
-            style = "yellow"
-        case logging.ERROR:
-            style = "red"
-    console.print(message, style=style)
-
-
-# pylint: disable=too-many-branches
-# pylint: disable=too-many-statements
-def main(  # noqa: C901
-):
-    """ Main entry point """
+def print_intro() -> None:
+    """ Prints a brief introductory message """
     console.clear()
     panel = Panel.fit(
         "\n[green]Welcome to the [b]Plex Music Duplicate Song Remover[/b][/green]\n"
@@ -51,16 +34,22 @@ def main(  # noqa: C901
         title="Plex Duplicate Song Finder"
     )
     console.print(panel)
-    time.sleep(1)
 
+
+# pylint: disable=too-many-branches
+# pylint: disable=too-many-statements
+def main(  # noqa: C901
+) -> None:
+    """ Main entry point for the program """
+    print_intro()
     # set up the environment / and get the music library
     try:
         the_music_library: MusicSection = setup(console)
     except GDException as gd_exception:
         console.rule()
-        console_log("\n" + str(gd_exception), logging.ERROR)
-        console_log("\nPlease delete the .env file and re-run to recreate it.\n", logging.INFO)
-        sys.exit(1)
+        console.print("\n" + str(gd_exception))
+        console.print("\nPlease delete the .env file and re-run to recreate it.\nExiting...")
+        return
     console.print("")
     songs_with_duplicates, num_tracks = duplicate_finder(the_music_library)
     time.sleep(1)
