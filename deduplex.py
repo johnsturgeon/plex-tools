@@ -93,6 +93,14 @@ def _enable_in_safe_mode() -> bool:
 def _enable_auto_delete() -> bool:
     padded_content: Padding = Padding(
         "[u]Q: What is \"Auto Delete\"?[/u]\n\n"
+        """
+        Auto delete will not prompt for each file.  It will scan your library
+         looking for tracks that are very likely to be duplicates of other tracks.
+        * Files are identical but filenames are different? [red]keep file that was added [b]first[/b][/red]
+        * Tracks are matched, but file quality is different?  [red]keep file with highest bitrate[/red]
+        """
+        
+        
         "[i]Enabling Auto Delete will not prompt you for each duplicate found,"
         " rather it will make a guess for which track should be deleted based on the following logic:\n"
         "• If the file is an exact duplicate, remove the one added to the library second.\n"
