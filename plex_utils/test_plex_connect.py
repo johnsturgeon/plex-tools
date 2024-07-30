@@ -72,8 +72,7 @@ def test_connect_to_plex_server_with_token_1(
     mock_getenv.side_effect = env_return_vals
     mock_console = Mock()
     calls = [
-        call(''),
-        call(StartsWith(":information: Found a Plex Token"))
+        call(StartsWith("\n:information: Found a Plex Token"))
     ]
     connect_to_plexserver(console=mock_console)
     plex_server.assert_called_once_with("valid_url", "valid_token")

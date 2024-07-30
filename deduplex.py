@@ -4,7 +4,6 @@
 """
 import sys
 import time
-import logging
 from typing import List, Dict, Optional
 
 from plexapi.audio import Track
@@ -26,24 +25,8 @@ console: Console = Console()
 DEFAULT_DUPLICATE_PLAYLIST_NAME = "GoshDarned Duplicates"
 
 
-def console_log(message: str, level=logging.NOTSET):
-    """ Deprecated """
-    style: Optional[str] = None
-    match level:
-        case logging.INFO:
-            style = "blue"
-        case logging.WARN:
-            style = "yellow"
-        case logging.ERROR:
-            style = "red"
-    console.print(message, style=style)
-
-
-# pylint: disable=too-many-branches
-# pylint: disable=too-many-statements
-def main(  # noqa: C901
-):
-    """ Main entry point """
+def _print_intro() -> None:
+    """ Prints a brief introductory message """
     console.clear()
     panel = Panel.fit(
         "\n[green]Welcome to the [b]Plex Music Duplicate Song Remover[/b][/green]\n"
@@ -51,29 +34,42 @@ def main(  # noqa: C901
         title="Plex Duplicate Song Finder"
     )
     console.print(panel)
-    time.sleep(1)
 
-    # set up the environment / and get the music library
-    try:
-        the_music_library: MusicSection = setup(console)
-    except GDException as gd_exception:
-        console.rule()
-        console_log("\n" + str(gd_exception), logging.ERROR)
-        console_log("\nPlease delete the .env file and re-run to recreate it.\n", logging.INFO)
-        sys.exit(1)
-    console.print("")
-    songs_with_duplicates, num_tracks = duplicate_finder(the_music_library)
-    time.sleep(1)
-    if len(songs_with_duplicates) == 0:
-        console.print("Congratulations! You have no duplicates!")
-        sys.exit(0)
-    else:
-        console.print("")
-        panel = findings_panel(songs_with_duplicates, num_tracks)
+
+def _print_steps() -> None:
+    """
+    Prompt the user to display instructions.
+     Sometimes users have seen and know the instructions and don't need to be reminded of them
+    """
+    view_steps: bool = Confirm.ask("\nView overview of steps?", default="y")
+    if view_steps:
+        panel = steps_panel()
         console.print(panel)
+    answer = Confirm.ask("Ready to continue?", default="y")
+    if not answer:
+        console.print("Exiting...")
+        sys.exit(0)
 
-    console.print("\n[green]READY:[/green] Let's clean up the duplicates\n"
-                  "But first, a couple of questions.\n")
+
+def _print_login_step(step_num: int):
+    """ Prints instructions for logging in """
+    panel = Panel.fit(
+        "Attempting to log in to your Plex Library",
+        title=f"[green]Step {step_num}[/green]"
+    )
+    console.print(panel)
+
+
+def _print_run_config_step(step_num: int):
+    panel = Panel.fit(
+        "Let's gather some information for how you want "
+        "the program to proceed with cleaning up your duplicates.",
+        title=f"[green]Step {step_num}[/green]"
+    )
+    console.print(panel)
+
+
+def _enable_in_safe_mode() -> bool:
     padded_content: Padding = Padding(
         "[u]Q: What is \"Safe Delete Mode\"?[/u]\n\n"
         "[i]Enabling Safe Mode Delete will add your duplicate tracks"
@@ -91,15 +87,74 @@ def main(  # noqa: C901
         console.print("\nExcellent, [b]Safe Mode Delete[/b] is now [green]ENABLED[/green]")
     else:
         console.print("\nOK, [b]Safe Mode Delete[/b] is [red]OFF[/red]")
-    view_instructions: bool = Confirm.ask("\nView instructions?", default="y")
+    return enable_safe_mode
+
+
+def _enable_auto_delete() -> bool:
+    padded_content: Padding = Padding(
+        "[u]Q: What is \"Auto Delete\"?[/u]\n\n"
+        """
+        Auto delete will not prompt for each file.  It will scan your library
+         looking for tracks that are very likely to be duplicates of other tracks.
+        * Files are identical but filenames are different? [red]keep file that was added [b]first[/b][/red]
+        * Tracks are matched, but file quality is different?  [red]keep file with highest bitrate[/red]
+        """
+        
+        
+        "[i]Enabling Auto Delete will not prompt you for each duplicate found,"
+        " rather it will make a guess for which track should be deleted based on the following logic:\n"
+        "• If the file is an exact duplicate, remove the one added to the library second.\n"
+        "• If the files differ:\n"
+        "\t• Remove the file with the lower bitrate\n"
+        "\t• "
+        f" to a playlist called \"{DEFAULT_DUPLICATE_PLAYLIST_NAME}\" [u]without deleting them[/u]."
+        " After the script is complete, you can review them in plex for manual removal", (1, 3)
+    )
+    panel = Panel.fit(padded_content, title="[green]Auto Delete[/green]")
+    console.print(panel)
     console.print("")
-    if view_instructions:
-        panel = instructions_panel()
-        console.print(panel)
-    answer = Confirm.ask("Ready to continue?", default="y")
-    if not answer:
-        console.print("Exiting...")
+    enable_safe_mode: bool = Confirm.ask(
+        "Would you like to enable [green]Safe Mode Delete[/green]?",
+        default="y"
+    )
+    if enable_safe_mode:
+        console.print("\nExcellent, [b]Safe Mode Delete[/b] is now [green]ENABLED[/green]")
+    else:
+        console.print("\nOK, [b]Safe Mode Delete[/b] is [red]OFF[/red]")
+    return enable_safe_mode
+
+# pylint: disable=too-many-branches
+# pylint: disable=too-many-statements
+def main(  # noqa: C901
+) -> None:
+    """ Main entry point for the program """
+    _print_intro()
+    _print_steps()
+    # set up the environment / and get the music library
+    _print_login_step(1)
+    try:
+        the_music_library: MusicSection = setup(console)
+    except GDException as gd_exception:
+        console.rule()
+        console.print("\n" + str(gd_exception))
+        console.print("\n[red]Please delete the .env file and re-run to recreate it.[/red]")
+        return
+    _print_run_config_step(2)
+    enable_safe_mode = _enable_in_safe_mode()
+    enable_auto_delete = _enable_auto_delete()
+    songs_with_duplicates, num_tracks = duplicate_finder(the_music_library)
+    time.sleep(1)
+    if len(songs_with_duplicates) == 0:
+        console.print("Congratulations! You have no duplicates!")
         sys.exit(0)
+    else:
+        console.print("")
+        panel = findings_panel(songs_with_duplicates, num_tracks)
+        console.print(panel)
+
+    console.print("\n[green]READY:[/green] Let's clean up the duplicates\n"
+                  "But first, a couple of questions.\n")
+
     choose_duplicates_to_delete(songs_with_duplicates)
     answer = Confirm.ask(
         "Would you like to review the list of duplicates you've flagged for removal?",
@@ -238,6 +293,13 @@ def instructions_panel() -> Panel:
     Returns:
         rich.panel.Panel
     """
+    t0 = "[u]Overview of steps the program performs[/u]"
+    m0 = Markdown(
+        "1.  Attempt to log into your plex instance using .env file (create if none exists).\n"
+        "2.  Prompt the user for various run-time configuration options.\n"
+        "3.  Scan library for duplicates.\n"
+        "4.  Clean up the duplicates.\n"
+    )
     t1 = "[u]First the review process[/u]"
     m1 = Markdown(
         "*  Review the song details for each duplicate found\n"
@@ -260,9 +322,27 @@ def instructions_panel() -> Panel:
         "\n[yellow][b]NOTE:[/b] Songs will not be deleted until "
         "you confirm after all selections have been made."
     )
-    content = Group(t1, m1, t2, m2, t3, m3, t4)
+    content = Group(t0, m0, t1, m1, t2, m2, t3, m3, t4)
     padded_content: Padding = Padding(content, (1, 3))
     return Panel.fit(padded_content, title="Instructions")
+
+
+def steps_panel() -> Panel:
+    """
+    Overview of the steps to be performed by the program
+    Returns:
+        rich.panel.Panel
+    """
+    t0 = "[u]Overview of steps the program performs[/u]"
+    m0 = Markdown(
+        "1.  Attempt to log into your plex instance using .env file (create if none exists).\n"
+        "2.  Prompt the user for various run-time configuration options.\n"
+        "3.  Scan library for duplicates.\n"
+        "4.  Clean up the duplicates.\n"
+    )
+    content = Group(t0, m0)
+    padded_content: Padding = Padding(content, (1, 3))
+    return Panel.fit(padded_content, title="Steps to perform")
 
 
 def findings_panel(songs_with_duplicates, num_tracks) -> Panel:

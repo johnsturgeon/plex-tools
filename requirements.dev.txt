@@ -1,3 +1,0 @@
-pytest==8.2.2
-pytest-mock==3.14.0
-callee==0.3.1
