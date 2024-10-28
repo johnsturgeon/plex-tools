@@ -18,7 +18,7 @@ This script will search your Plex Music Library for duplicates.  It will provide
 
 ## Quick Start
 
-*  Install dependencies
+*  Clone repository
 
 ```bash
 git clone git@github.com:johnsturgeon/plex-tools.git
@@ -27,6 +27,11 @@ cd plex-tools
 
 > NOTE: Recommended: Use a virtual env
 
+```bash
+python -m venv venv
+source venv/bin/activate
+```
+* Install requirements
 ```bash
 pip install -r requirements.txt
 ```
@@ -46,7 +51,7 @@ Join our [discussion](https://github.com/johnsturgeon/plex-tools/discussions).
 ## Usage
 
 ```bash
-python deduplexs.py
+python deduplex.py
 ```
 
 The script will walk you through an initial configuration, Optionally offer to save the config in a `.env` file, and begin the search
