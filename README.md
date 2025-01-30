@@ -1,4 +1,4 @@
-# GoshDarned Tools
+# GoshDarned Tools for Plex
 
 Utilities and scripts for plex using the Plex API to clean up your Plex Music library.
 
