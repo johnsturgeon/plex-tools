@@ -6,6 +6,7 @@
     </content>
     <orderEntry type="jdk" jdkName="uv (plex-tools) (2)" jdkType="Python SDK" />
     <orderEntry type="sourceFolder" forTests="false" />
+    <orderEntry type="library" name="bootstrap" level="application" />
   </component>
   <component name="PyDocumentationSettings">
     <option name="format" value="PLAIN" />

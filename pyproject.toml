@@ -1,8 +1,17 @@
 [project]
 name = "plex-tools"
-version = "0.1.0"
+version = "0.1.1"
 description = "Add your description here"
 requires-python = ">=3.11"
 dependencies = [
+    "fastapi>=0.115.8",
+    "jinja2>=3.1.5",
     "plexapi>=4.16.1",
+    "ruff>=0.9.4",
+    "uvicorn>=0.34.0",
+]
+
+[dependency-groups]
+dev = [
+    "pylint>=3.3.4",
 ]
