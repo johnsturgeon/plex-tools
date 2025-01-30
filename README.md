@@ -6,6 +6,12 @@ Utilities and scripts for plex using the Plex API to clean up your Plex Music li
 
 ---
 
+## UPDATE 2025-01-29
+
+I'm going to work on making a web server for interacting with the plex tools.  You can follow along the project here:
+[Prioritized backlog · Create a website for the plex-tools](https://github.com/users/johnsturgeon/projects/8)
+
+
 ## Deduplex: `deduplex.py`
 
 This script will search your Plex Music Library for duplicates.  It will provide information for you to decide which ones you want to clean.  You can choose to "Safe Clean" (place all duplicates in a playlist) or delete.
