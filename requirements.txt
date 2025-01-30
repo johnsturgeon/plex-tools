@@ -8,3 +8,8 @@ thefuzz==0.22.1
 musicbrainzngs==0.7.1
 pylint==3.2.3
 callee==0.3.1
+
+# dev requirements
+pytest~=8.2.2
+pytest-mock==3.14.0
+callee==0.3.1
