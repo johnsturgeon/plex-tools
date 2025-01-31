@@ -9,6 +9,8 @@ dependencies = [
     "jinja2>=3.1.5",
     "plexapi>=4.16.1",
     "ruff>=0.9.4",
+    "sqlalchemy>=2.0.37",
+    "sqlmodel>=0.0.22",
     "uvicorn>=0.34.0",
 ]
 

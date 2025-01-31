@@ -1,11 +1,15 @@
 import os
+from contextlib import asynccontextmanager
+from typing import Annotated
+
 import httpx
 import urllib.parse
 
 from starlette.responses import RedirectResponse, JSONResponse
 import uvicorn
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Depends
 from starlette.templating import Jinja2Templates
+from sqlmodel import Session, SQLModel, create_engine, Field
 
 PLEX_CLIENT_ID = "dc0537e0-6755-44de-97ee-6edd7a51c9b4"  # Generate a UUID for this
 PLEX_REDIRECT_URI = "http://localhost:6701/auth/callback"
@@ -13,19 +17,53 @@ PLEX_PRODUCT_NAME = "Gosh Darned Plex Tools"
 PLEX_PIN_URL = "https://plex.tv/api/v2/pins"
 PLEX_AUTH_URL = "https://app.plex.tv/auth#"
 PLEX_FORWARD_URL = "http://localhost:6701/"
-app = FastAPI()
+
+
+class AuthUser(SQLModel, table=True):
+    __table_args__ = {"extend_existing": True}
+    id: int | None = Field(default=None, primary_key=True)
+    pin: str = Field(index=True)
+    auth_key: str | None = Field(default=None, nullable=True)
+
+
 templates = Jinja2Templates(directory="templates")
 
-user_tokens = {}
+sqlite_file_name = "database.db"
+sqlite_url = f"sqlite:///{sqlite_file_name}"
+
+connect_args = {"check_same_thread": False}
+engine = create_engine(sqlite_url, echo=True, connect_args=connect_args)
+
+
+@asynccontextmanager
+async def lifespan(the_app: FastAPI):
+    # All startup logig goes here
+    create_db_and_tables()
+    yield
+    # Any shutdown / cleanup code goes here
+
+
+def create_db_and_tables():
+    SQLModel.metadata.create_all(engine)
+
+
+def get_session():
+    with Session(engine) as session:
+        yield session
+
+
+SessionDep = Annotated[Session, Depends(get_session)]
+app = FastAPI()
 
 
 @app.get("/")
-async def root(request: Request):
-    return templates.TemplateResponse("home.j2", {"request": request})
+async def root(request: Request, session: SessionDep):
+    # Check for authentication and retrieve token
+    return templates.TemplateResponse("home.j2", {"request": request, "token": token})
 
 
 @app.get("/auth/login")
-async def login():
+async def login(session: SessionDep):
     """
     Step 1: Generate a PIN and redirect the user to Plex for authentication.
     """
@@ -60,7 +98,10 @@ async def login():
         + urllib.parse.quote(PLEX_FORWARD_URL)
     )
     # Store the pin_id temporarily
-    user_tokens[pin_id] = {"pin": pin_code, "token": None}
+    auth_user = AuthUser(pin=pin_id)
+    session.add(auth_user)
+    session.commit()
+    session.refresh(auth_user)
 
     return RedirectResponse(auth_url)
 
