@@ -11,17 +11,14 @@ from starlette.responses import JSONResponse, RedirectResponse
 from starlette.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 
+from config import Config
+
 # Constants used for Plex API configuration and cookie settings.
-PLEX_CLIENT_ID = "dc0537e0-6755-44de-97ee-6edd7a51c9b4"  # Generate a UUID for this
-PLEX_REDIRECT_URI = "http://localhost:6701/auth/callback"
-PLEX_PRODUCT_NAME = "Gosh Darned Plex Tools"
-PLEX_PIN_URL = "https://plex.tv/api/v2/pins"
-PLEX_AUTH_URL = "https://app.plex.tv/auth#"
-PLEX_FORWARD_URL = "http://localhost:6701/callback"
-PLEX_USER_URL = "https://plex.tv/api/v2/user"
-SECONDS: Final[int] = 60 * 60 * 24
-DAYS: Final[int] = 30
-COOKIE_TIME_OUT = DAYS * SECONDS
+
+config = Config.get_config()
+
+SECONDS_IN_A_DAY: Final[int] = 60 * 60 * 24
+COOKIE_TIME_OUT = config.COOKIE_RETENTION_DAYS * SECONDS_IN_A_DAY
 
 # Initialize the FastAPI app and add session middleware.
 app = FastAPI()
@@ -143,12 +140,12 @@ async def generate_pin():
     """
     async with httpx.AsyncClient() as client:
         response = await client.post(
-            PLEX_PIN_URL,
+            config.PLEX_PIN_URL,
             json={"strong": True},
             headers={
                 "accept": "application/json",
-                "X-Plex-Product": PLEX_PRODUCT_NAME,
-                "X-Plex-Client-Identifier": PLEX_CLIENT_ID,
+                "X-Plex-Product": config.APP_PRODUCT_NAME,
+                "X-Plex-Client-Identifier": config.APP_CLIENT_ID,
             },
         )
 
@@ -175,14 +172,14 @@ async def fetch_auth_token(pin_id, pin_code):
         dict or JSONResponse: The JSON response containing the authentication token if successful,
                               or a JSONResponse with an error message if the token cannot be fetched.
     """
-    url = f"{PLEX_PIN_URL}/{pin_id}"
+    url = f"{config.PLEX_PIN_URL}/{pin_id}"
     async with httpx.AsyncClient() as client:
         response = await client.get(
             url,
             params={"code": pin_code},
             headers={
                 "accept": "application/json",
-                "X-Plex-Client-Identifier": PLEX_CLIENT_ID,
+                "X-Plex-Client-Identifier": config.APP_CLIENT_ID,
             },
         )
 
@@ -205,14 +202,14 @@ async def get_plex_user_from_auth_token(auth_token) -> Optional[PlexUser]:
     Returns:
         Optional[PlexUser]: A PlexUser object if successful; otherwise, None.
     """
-    url = f"{PLEX_USER_URL}"
+    url = f"{config.PLEX_USER_URL}"
     async with httpx.AsyncClient() as client:
         response = await client.get(
             url,
             headers={
                 "accept": "application/json",
-                "X-Plex-Product": PLEX_PRODUCT_NAME,
-                "X-Plex-Client-Identifier": PLEX_CLIENT_ID,
+                "X-Plex-Product": config.APP_PRODUCT_NAME,
+                "X-Plex-Client-Identifier": config.APP_CLIENT_ID,
                 "X-Plex-Token": auth_token,
             },
         )
@@ -303,11 +300,11 @@ async def login(request: Request):
         return JSONResponse(status_code=500, content={"error": "Invalid PIN response"})
 
     auth_url = (
-        f"{PLEX_AUTH_URL}?clientID={PLEX_CLIENT_ID}&code={pin_code}"
+        f"{config.PLEX_AUTH_URL}?clientID={config.APP_CLIENT_ID}&code={pin_code}"
         f"&context%5Bdevice%5D%5Bproduct%5D="
-        + urllib.parse.quote(PLEX_PRODUCT_NAME)
+        + urllib.parse.quote(config.APP_PRODUCT_NAME)
         + "&forwardUrl="
-        + urllib.parse.quote(PLEX_FORWARD_URL)
+        + urllib.parse.quote(config.APP_FORWARD_URL)
     )
     # Store the PIN information temporarily in the session.
     request.session["pin_info"] = {
@@ -326,6 +323,5 @@ if __name__ == "__main__":
     This block checks the 'ENVIRONMENT' variable to determine whether to enable auto-reloading.
     It then runs the FastAPI application using uvicorn on host '0.0.0.0' and port 6701.
     """
-    reload: bool = os.getenv("ENVIRONMENT") != "production"
-    print("Log in at: http://localhost:6701/")
+    reload: bool = config.ENVIRONMENT != "production"
     uvicorn.run("main:app", host="0.0.0.0", port=6701, reload=reload, access_log=False)
