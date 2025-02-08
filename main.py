@@ -18,6 +18,7 @@ app = FastAPI()
 # noinspection PyTypeChecker
 app.add_middleware(SessionMiddleware, secret_key="some-random-string")
 
+
 @app.middleware("http")
 async def some_middleware(request: Request, call_next):
     response = await call_next(request)
@@ -32,6 +33,7 @@ async def some_middleware(request: Request, call_next):
 templates = Jinja2Templates(directory="templates")
 
 user_tokens = {}
+
 
 async def generate_pin():
     async with httpx.AsyncClient() as client:
@@ -52,40 +54,39 @@ async def generate_pin():
     response_json = response.json()
     return response_json
 
-async def fetch_auth_token(pin_id):
-    # $ curl -X GET 'https://plex.tv/api/v2/pins/<pinID>' \
-    #   -H 'accept: application/json' \
-    #   -d 'code=<pinCode>' \
-    #   -d 'X-Plex-Client-Identifier=<clientIdentifier>'
+
+async def fetch_auth_token(pin_id, pin_code):
+    url = f"{PLEX_PIN_URL}/{pin_id}"
     async with httpx.AsyncClient() as client:
-        response = await client.post(
-            PLEX_PIN_URL,
-            json={"code": pin_id},
+        response = await client.get(
+            url,
+            params={"code": pin_code},
             headers={
                 "accept": "application/json",
                 "X-Plex-Client-Identifier": PLEX_CLIENT_ID,
             },
         )
 
-    if response.status_code != 201:
-        return JSONResponse(
-            status_code=500, content={"error": "Failed to fetch token"}
-        )
+    if response.status_code != 200:
+        return JSONResponse(status_code=500, content={"error": "Failed to fetch token"})
     response_json = response.json()
-    print(response_json.get("authToken"))
     return response_json
+
 
 @app.get("/")
 async def root(request: Request):
     pin_info = request.session.get("pin_info")
-    pin_data = await fetch_auth_token(pin_info.get("pin_id"))
-    print(pin_data)
+    pin_data = await fetch_auth_token(
+        pin_id=pin_info.get("pin_id"), pin_code=pin_info.get("pin_code")
+    )
+    pin_info["auth_token"] = pin_data.get("authToken")
     return templates.TemplateResponse(
-        "home.j2", {
+        "home.j2",
+        {
             "request": request,
             "pin_id": pin_info.get("pin_id"),
-            "token": pin_info.get("token"),
-        }
+            "auth_token": pin_info.get("auth_token"),
+        },
     )
 
 
@@ -109,7 +110,11 @@ async def login(request: Request):
         + urllib.parse.quote(PLEX_FORWARD_URL)
     )
     # Store the pin_id temporarily
-    request.session["pin_info"] = {"pin_id": pin_id, "token": None}
+    request.session["pin_info"] = {
+        "pin_id": pin_id,
+        "pin_code": pin_code,
+        "auth_token": None,
+    }
 
     return RedirectResponse(auth_url)
 
