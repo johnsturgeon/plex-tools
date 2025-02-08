@@ -1,11 +1,12 @@
 import os
-import httpx
 import urllib.parse
 
-from starlette.responses import RedirectResponse, JSONResponse
+import httpx
 import uvicorn
 from fastapi import FastAPI, Request
+from starlette.responses import JSONResponse, RedirectResponse
 from starlette.templating import Jinja2Templates
+from starlette.middleware.sessions import SessionMiddleware
 
 PLEX_CLIENT_ID = "dc0537e0-6755-44de-97ee-6edd7a51c9b4"  # Generate a UUID for this
 PLEX_REDIRECT_URI = "http://localhost:6701/auth/callback"
@@ -14,21 +15,25 @@ PLEX_PIN_URL = "https://plex.tv/api/v2/pins"
 PLEX_AUTH_URL = "https://app.plex.tv/auth#"
 PLEX_FORWARD_URL = "http://localhost:6701/"
 app = FastAPI()
+# noinspection PyTypeChecker
+app.add_middleware(SessionMiddleware, secret_key="some-random-string")
+
+@app.middleware("http")
+async def some_middleware(request: Request, call_next):
+    response = await call_next(request)
+    session = request.cookies.get("session")
+    if session:
+        response.set_cookie(
+            key="session", value=request.cookies.get("session"), httponly=True
+        )
+    return response
+
+
 templates = Jinja2Templates(directory="templates")
 
 user_tokens = {}
 
-
-@app.get("/")
-async def root(request: Request):
-    return templates.TemplateResponse("home.j2", {"request": request})
-
-
-@app.get("/auth/login")
-async def login():
-    """
-    Step 1: Generate a PIN and redirect the user to Plex for authentication.
-    """
+async def generate_pin():
     async with httpx.AsyncClient() as client:
         response = await client.post(
             PLEX_PIN_URL,
@@ -44,10 +49,54 @@ async def login():
         return JSONResponse(
             status_code=500, content={"error": "Failed to generate PIN"}
         )
+    response_json = response.json()
+    return response_json
 
-    pin_data = response.json()
-    pin_code = pin_data.get("code")
-    pin_id = pin_data.get("id")
+async def fetch_auth_token(pin_id):
+    # $ curl -X GET 'https://plex.tv/api/v2/pins/<pinID>' \
+    #   -H 'accept: application/json' \
+    #   -d 'code=<pinCode>' \
+    #   -d 'X-Plex-Client-Identifier=<clientIdentifier>'
+    async with httpx.AsyncClient() as client:
+        response = await client.post(
+            PLEX_PIN_URL,
+            json={"code": pin_id},
+            headers={
+                "accept": "application/json",
+                "X-Plex-Client-Identifier": PLEX_CLIENT_ID,
+            },
+        )
+
+    if response.status_code != 201:
+        return JSONResponse(
+            status_code=500, content={"error": "Failed to fetch token"}
+        )
+    response_json = response.json()
+    print(response_json.get("authToken"))
+    return response_json
+
+@app.get("/")
+async def root(request: Request):
+    pin_info = request.session.get("pin_info")
+    pin_data = await fetch_auth_token(pin_info.get("pin_id"))
+    print(pin_data)
+    return templates.TemplateResponse(
+        "home.j2", {
+            "request": request,
+            "pin_id": pin_info.get("pin_id"),
+            "token": pin_info.get("token"),
+        }
+    )
+
+
+@app.get("/auth/login")
+async def login(request: Request):
+    """
+    Step 1: Generate a PIN and redirect the user to Plex for authentication.
+    """
+    request_pin_info = await generate_pin()
+    pin_code = request_pin_info.get("code")
+    pin_id = request_pin_info.get("id")
 
     if not pin_code or not pin_id:
         return JSONResponse(status_code=500, content={"error": "Invalid PIN response"})
@@ -60,7 +109,7 @@ async def login():
         + urllib.parse.quote(PLEX_FORWARD_URL)
     )
     # Store the pin_id temporarily
-    user_tokens[pin_id] = {"pin": pin_code, "token": None}
+    request.session["pin_info"] = {"pin_id": pin_id, "token": None}
 
     return RedirectResponse(auth_url)
 
