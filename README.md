@@ -2,7 +2,7 @@
 
 Utilities and scripts for plex using the Plex API to clean up your Plex Music library.
 
-<img width="300" src="https://github.com/johnsturgeon/plex-tools/assets/9746310/0c42ce63-983b-43a6-8f2e-77338e204cba">
+<img width="300" src="https://github.com/johnsturgeon/plex-tools/assets/9746310/0c42ce63-983b-43a6-8f2e-77338e204cba" alt="GoshDarned Mascot">
 
 ---
 
