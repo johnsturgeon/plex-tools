@@ -17,9 +17,11 @@ class Config:
     APP_PRODUCT_NAME: str
     COOKIE_RETENTION_DAYS: int
     ENVIRONMENT: str
+    HOSTNAME: str
     PLEX_AUTH_URL: str
     PLEX_PIN_URL: str
     PLEX_USER_URL: str
+    PORT: int
 
     @classmethod
     def get_config(cls):
@@ -31,8 +33,10 @@ class Config:
             APP_PRODUCT_NAME=os.getenv("APP_PRODUCT_NAME"),
             COOKIE_RETENTION_DAYS=int(os.getenv("COOKIE_RETENTION_DAYS")),
             ENVIRONMENT=os.getenv("ENVIRONMENT"),
+            HOSTNAME=os.getenv("HOSTNAME"),
             PLEX_AUTH_URL=os.getenv("PLEX_AUTH_URL"),
             PLEX_PIN_URL=os.getenv("PLEX_PIN_URL"),
             PLEX_USER_URL=os.getenv("PLEX_USER_URL"),
+            PORT=int(os.getenv("PORT")),
         )
         return config
