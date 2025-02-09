@@ -38,6 +38,7 @@ fi
 if ! which uv
 then
   curl -LsSf https://astral.sh/uv/install.sh | sh
+  source "$HOME/.profile"
 else
   uv self update
 fi
