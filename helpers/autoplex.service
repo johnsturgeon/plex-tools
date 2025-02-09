@@ -1,0 +1,12 @@
+[Unit]
+Description=AutoPlex Plex Helper
+After=network-online.target
+
+[Service]
+WorkingDirectory=/opt/autoplex/app
+Type=simple
+Restart=always
+ExecStart=/opt/autoplex/app/venv/bin/uvicorn --host 0.0.0.0 --port 80 main:app
+
+[Install]
+WantedBy=multi-user.target
