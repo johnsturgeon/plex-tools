@@ -1,0 +1,12 @@
+[Unit]
+Description=AutoPlex Plex Helper
+After=network-online.target
+
+[Service]
+WorkingDirectory=/opt/autoplex/app
+Type=simple
+Restart=always
+ExecStart=/opt/autoplex/app/.venv/bin/python main.py
+
+[Install]
+WantedBy=multi-user.target
