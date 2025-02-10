@@ -240,6 +240,7 @@ async def root(request: Request, plex_user: PlexUser = Depends(verify_plex_user)
             "request": request,
             "name": plex_user.name,
             "auth_token": plex_user.auth_token,
+            "total_duplicates": 74,
         },
     )
 
