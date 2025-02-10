@@ -1,3 +1,3 @@
 cd "$(dirname "$0")" || exit
-cd ..
+cd ../app || exit
 infisical export --format=dotenv-export --env dev > .env
