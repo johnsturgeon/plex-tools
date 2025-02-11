@@ -1,15 +1,17 @@
 import urllib.parse
-from typing import Optional, Final
+from typing import Optional, Final, Annotated
 
 import httpx
 import uvicorn
 from fastapi import FastAPI, Request, HTTPException, Depends
-from pydantic import BaseModel
+from sqlalchemy import Engine
+from sqlmodel import Session, select
 from starlette import status
 from starlette.responses import JSONResponse, RedirectResponse
 from starlette.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 
+from app.db import get_engine, PlexUser
 from config import Config
 
 # Constants used for Plex API configuration and cookie settings.
@@ -24,18 +26,15 @@ app = FastAPI()
 # noinspection PyTypeChecker
 app.add_middleware(SessionMiddleware, secret_key="some-random-string")
 
+engine: Engine = get_engine()
 
-class PlexUser(BaseModel):
-    """
-    Model representing a Plex user.
 
-    Attributes:
-        auth_token (str): Authentication token provided by Plex.
-        name (str): The username of the Plex user.
-    """
+def get_session():
+    with Session(engine) as session:
+        yield session
 
-    auth_token: str
-    name: str
+
+SessionDep = Annotated[Session, Depends(get_session)]
 
 
 @app.middleware("http")
@@ -87,14 +86,17 @@ async def verify_plex_user(request: Request) -> PlexUser:
         HTTPException: If the user is not authenticated, with a temporary redirect header to the login page.
     """
     plex_user = None
-    auth_token = request.cookies.get("auth_token")
-    if auth_token:
-        plex_user: Optional[PlexUser] = await get_plex_user_from_auth_token(auth_token)
+    plex_uuid = request.cookies.get("plex_uuid")
+    if plex_uuid:
+        with Session(engine) as session:
+            statement = select(PlexUser).where(PlexUser.plex_uuid == plex_uuid)
+            # noinspection PyTypeChecker
+            result = session.exec(statement)
+            plex_user = result.first()
     if plex_user:
         return plex_user
-
-    if request.cookies.get("auth_token"):
-        request.cookies.pop("auth_token")
+    if request.cookies.get("plex_uuid"):
+        request.cookies.pop("plex_uuid")
     raise HTTPException(
         status_code=status.HTTP_307_TEMPORARY_REDIRECT,
         headers={"Location": "/auth/login"},
@@ -216,7 +218,11 @@ async def get_plex_user_from_auth_token(auth_token) -> Optional[PlexUser]:
     if response.status_code != 200:
         return None
     response_json = response.json()
-    user = PlexUser(name=response_json["username"], auth_token=auth_token)
+    user = PlexUser(
+        name=response_json["username"],
+        auth_token=auth_token,
+        plex_uuid=response_json["uuid"],
+    )
     return user
 
 
@@ -263,11 +269,28 @@ async def callback(request: Request):
     """
     auth_token = await get_auth_token_from_pin(request)
     if auth_token:
+        plex_user: PlexUser = await get_plex_user_from_auth_token(auth_token)
+        plex_uuid: str = plex_user.plex_uuid
+        with Session(engine) as session:
+            # Check if the user already exists
+            statement = select(PlexUser).where(PlexUser.plex_uuid == plex_uuid)
+            # noinspection PyTypeChecker
+            existing_user = session.exec(statement).first()
+
+            if existing_user:
+                # Update existing user
+                existing_user.auth_token = plex_user.auth_token
+                existing_user.name = plex_user.name
+            else:
+                # Insert new user
+                session.add(plex_user)
+
+            session.commit()  # Commit changes
         redirect_url = request.url_for("root")
         response = RedirectResponse(redirect_url, status_code=status.HTTP_302_FOUND)
         response.set_cookie(
-            key="auth_token",
-            value=auth_token,
+            key="plex_uuid",
+            value=plex_uuid,
             max_age=COOKIE_TIME_OUT,
         )
     else:
