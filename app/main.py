@@ -11,7 +11,7 @@ from starlette.responses import JSONResponse, RedirectResponse
 from starlette.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 
-from app.db import get_engine, PlexUser
+from db import get_engine, PlexUser
 from config import Config
 
 # Constants used for Plex API configuration and cookie settings.
