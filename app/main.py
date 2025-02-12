@@ -252,6 +252,26 @@ async def root(request: Request):
     )
 
 
+@app.get("/duplicates")
+async def duplicates(request: Request, plex_user: PlexUser = Depends(verify_plex_user)):
+    """
+    Render the home page for authenticated Plex users.
+
+    This route handler renders the home page template with the authenticated user's information.
+
+    Args:
+        request (Request): The incoming HTTP request.
+        plex_user (PlexUser): The authenticated Plex user, obtained via dependency injection.
+
+    Returns:
+        TemplateResponse: The rendered home page.
+    """
+    return templates.TemplateResponse(
+        "duplicates.j2",
+        {"request": request, "plex_user": plex_user},
+    )
+
+
 @app.get("/callback")
 async def callback(request: Request, pin_id: str, pin_code: str):
     """
