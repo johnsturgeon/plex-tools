@@ -22,6 +22,7 @@ class Config:
     PLEX_PIN_URL: str
     PLEX_USER_URL: str
     PORT: int
+    UMAMI_KEY: str
 
     @classmethod
     def get_config(cls):
@@ -38,5 +39,6 @@ class Config:
             PLEX_PIN_URL=os.getenv("PLEX_PIN_URL"),
             PLEX_USER_URL=os.getenv("PLEX_USER_URL"),
             PORT=int(os.getenv("PORT")),
+            UMAMI_KEY=os.getenv("UMAMI_KEY"),
         )
         return config

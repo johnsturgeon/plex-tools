@@ -248,7 +248,7 @@ async def root(request: Request):
         user_name: str = plex_user.name
     return templates.TemplateResponse(
         "home.j2",
-        {"request": request, "user_name": user_name},
+        {"request": request, "user_name": user_name, "config": config},
     )
 
 
@@ -268,7 +268,7 @@ async def duplicates(request: Request, plex_user: PlexUser = Depends(verify_plex
     """
     return templates.TemplateResponse(
         "duplicates.j2",
-        {"request": request, "plex_user": plex_user},
+        {"request": request, "plex_user": plex_user, "config": config},
     )
 
 
@@ -290,7 +290,12 @@ async def fetch_duplicates(
     """
     return templates.TemplateResponse(
         "duplicates.j2",
-        {"request": request, "plex_user": plex_user, "duplicates": ["one", "two"]},
+        {
+            "request": request,
+            "plex_user": plex_user,
+            "duplicates": ["one", "two"],
+            "config": config,
+        },
     )
 
 
