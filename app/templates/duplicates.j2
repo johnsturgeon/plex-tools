@@ -1,0 +1,13 @@
+{% extends "base.j2" %}
+
+{% block title %}Duplicates{% endblock %}
+
+{% block content %}
+    <h1>Welcome to Autoplex DeDup tool</h1>
+    <a href="{{ url_for('fetch_duplicates') }}" class="btn rounded" style="color: #e5a00c; border: 1px solid black;">Fetch Duplicates</a>
+    {% if duplicates %}
+    	{% for duplicate in duplicates %}
+        <div class="duplicate">{{ duplicate }}</div>
+        {% endfor %}
+    {% endif %}
+{% endblock %}

@@ -68,6 +68,18 @@ templates = Jinja2Templates(directory="templates")
 user_tokens = {}
 
 
+async def get_user_from_request(request: Request) -> Optional[PlexUser]:
+    plex_user = None
+    plex_uuid = request.cookies.get("plex_uuid")
+    if plex_uuid:
+        with Session(engine) as session:
+            statement = select(PlexUser).where(PlexUser.plex_uuid == plex_uuid)
+            # noinspection PyTypeChecker
+            result = session.exec(statement)
+            plex_user = result.first()
+    return plex_user
+
+
 async def verify_plex_user(request: Request) -> PlexUser:
     """
     Verify the Plex user from the current session or redirect to the login if not authenticated.
@@ -85,14 +97,7 @@ async def verify_plex_user(request: Request) -> PlexUser:
     Raises:
         HTTPException: If the user is not authenticated, with a temporary redirect header to the login page.
     """
-    plex_user = None
-    plex_uuid = request.cookies.get("plex_uuid")
-    if plex_uuid:
-        with Session(engine) as session:
-            statement = select(PlexUser).where(PlexUser.plex_uuid == plex_uuid)
-            # noinspection PyTypeChecker
-            result = session.exec(statement)
-            plex_user = result.first()
+    plex_user: PlexUser = await get_user_from_request(request)
     if plex_user:
         return plex_user
     if request.cookies.get("plex_uuid"):
@@ -103,7 +108,7 @@ async def verify_plex_user(request: Request) -> PlexUser:
     )
 
 
-async def get_auth_token_from_pin(request: Request) -> Optional[str]:
+async def get_auth_token_from_pin(pin_id: str, pin_code: str) -> Optional[str]:
     """
     Retrieve the authentication token from a previously generated PIN stored in session.
 
@@ -112,19 +117,16 @@ async def get_auth_token_from_pin(request: Request) -> Optional[str]:
     PIN information from the session.
 
     Args:
-        request (Request): The incoming HTTP request.
+        pin_id (str): The PIN ID of the PLEX user.
+        pin_code (str): The PIN code of the PLEX user.
 
     Returns:
         Optional[str]: The retrieved authentication token if available; otherwise, None.
     """
     auth_token: Optional[str] = None
-    pin_info = request.session.get("pin_info")
-    if pin_info:
-        pin_data = await fetch_auth_token(
-            pin_id=pin_info.get("pin_id"), pin_code=pin_info.get("pin_code")
-        )
+    pin_data = await fetch_auth_token(pin_id, pin_code)
+    if isinstance(pin_data, dict):
         auth_token = pin_data.get("authToken")
-        request.session.pop("pin_info")
     return auth_token
 
 
@@ -227,7 +229,31 @@ async def get_plex_user_from_auth_token(auth_token) -> Optional[PlexUser]:
 
 
 @app.get("/")
-async def root(request: Request, plex_user: PlexUser = Depends(verify_plex_user)):
+async def root(request: Request):
+    """
+    Render the home page for authenticated Plex users.
+
+    This route handler renders the home page template with the authenticated user's information.
+
+    Args:
+        request (Request): The incoming HTTP request.
+        plex_user (PlexUser): The authenticated Plex user, obtained via dependency injection.
+
+    Returns:
+        TemplateResponse: The rendered home page.
+    """
+    user_name: Optional[str] = None
+    plex_user: PlexUser = await get_user_from_request(request)
+    if plex_user:
+        user_name: str = plex_user.name
+    return templates.TemplateResponse(
+        "home.j2",
+        {"request": request, "user_name": user_name},
+    )
+
+
+@app.get("/duplicates")
+async def duplicates(request: Request, plex_user: PlexUser = Depends(verify_plex_user)):
     """
     Render the home page for authenticated Plex users.
 
@@ -241,17 +267,35 @@ async def root(request: Request, plex_user: PlexUser = Depends(verify_plex_user)
         TemplateResponse: The rendered home page.
     """
     return templates.TemplateResponse(
-        "home.j2",
-        {
-            "request": request,
-            "name": plex_user.name,
-            "auth_token": plex_user.auth_token,
-        },
+        "duplicates.j2",
+        {"request": request, "plex_user": plex_user},
+    )
+
+
+@app.get("/fetch_duplicates")
+async def fetch_duplicates(
+    request: Request, plex_user: PlexUser = Depends(verify_plex_user)
+):
+    """
+    Render the home page for authenticated Plex users.
+
+    This route handler renders the home page template with the authenticated user's information.
+
+    Args:
+        request (Request): The incoming HTTP request.
+        plex_user (PlexUser): The authenticated Plex user, obtained via dependency injection.
+
+    Returns:
+        TemplateResponse: The rendered home page.
+    """
+    return templates.TemplateResponse(
+        "duplicates.j2",
+        {"request": request, "plex_user": plex_user, "duplicates": ["one", "two"]},
     )
 
 
 @app.get("/callback")
-async def callback(request: Request):
+async def callback(request: Request, pin_id: str, pin_code: str):
     """
     Handle the callback from Plex authentication.
 
@@ -261,12 +305,14 @@ async def callback(request: Request):
 
     Args:
         request (Request): The incoming HTTP request containing session data.
+        pin_id (str): The ID of the generated PIN.
+        pin_code (str): The code corresponding to the PIN.
 
     Returns:
         RedirectResponse: A redirection to the home page if authentication is successful,
                           or to the login page if not.
     """
-    auth_token = await get_auth_token_from_pin(request)
+    auth_token = await get_auth_token_from_pin(pin_id, pin_code)
     if auth_token:
         plex_user: PlexUser = await get_plex_user_from_auth_token(auth_token)
         plex_uuid: str = plex_user.plex_uuid
@@ -321,20 +367,14 @@ async def login(request: Request):
     if not pin_code or not pin_id:
         return JSONResponse(status_code=500, content={"error": "Invalid PIN response"})
 
+    forward_url = f"{config.APP_FORWARD_URL}?pin_id={pin_id}&pin_code={pin_code}"
     auth_url = (
         f"{config.PLEX_AUTH_URL}?clientID={config.APP_CLIENT_ID}&code={pin_code}"
         f"&context%5Bdevice%5D%5Bproduct%5D="
         + urllib.parse.quote(config.APP_PRODUCT_NAME)
         + "&forwardUrl="
-        + urllib.parse.quote(config.APP_FORWARD_URL)
+        + urllib.parse.quote(forward_url)
     )
-    # Store the PIN information temporarily in the session.
-    request.session["pin_info"] = {
-        "pin_id": pin_id,
-        "pin_code": pin_code,
-        "auth_token": None,
-    }
-
     return RedirectResponse(auth_url)
 
 
