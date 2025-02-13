@@ -7,9 +7,9 @@
 # CHANGE THIS if you want to install in a different directory
 INSTALL_DIR=/opt/autoplex
 DB_FILE="${INSTALL_DIR}/app/db/database.db"
-DB_FILE_EXISTS=n
-# CHANGE THIS to anything other than 'y'
-#   if you do not want to use infisical for your secret manangement
+
+# CHANGE THIS to anything other than 'y' if
+#    you do not want to use infisical for your secret manangement
 USE_INFISICAL=y
 
 if [ ! -d "${INSTALL_DIR}" ]
@@ -53,8 +53,8 @@ rm main.zip
 # check to see if there is a database
 if [ -f "${DB_FILE}" ]
 then
-  cp "${DB_FILE}.bak" autoplex-main/app/db
-  mv "${DB_FILE}" autoplex-main/app/db
+  cp "${DB_FILE}" autoplex-main/app/db/database.bak
+  cp "${DB_FILE}" autoplex-main/app/db
 fi
 rm -rf ${INSTALL_DIR}/app
 
@@ -89,8 +89,7 @@ uv sync
 
 if [ ! -f "${DB_FILE}" ]
 then
-  cd db || exit
-  .venv/bin/python database.py
+  .venv/bin/python db/database.py
 fi
 
 systemctl daemon-reload
