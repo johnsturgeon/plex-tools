@@ -6,7 +6,8 @@
 
 # CHANGE THIS if you want to install in a different directory
 INSTALL_DIR=/opt/autoplex
-
+DB_FILE="${INSTALL_DIR}/app/db/database.db"
+DB_FILE_EXISTS=n
 # CHANGE THIS to anything other than 'y'
 #   if you do not want to use infisical for your secret manangement
 USE_INFISICAL=y
@@ -49,8 +50,15 @@ wget https://github.com/johnsturgeon/autoplex/archive/main.zip
 unzip main.zip
 rm main.zip
 
-# grab the important bits
+# check to see if there is a database
+if [ -f "${DB_FILE}" ]
+then
+  cp "${DB_FILE}.bak" autoplex-main/app/db
+  mv "${DB_FILE}" autoplex-main/app/db
+fi
 rm -rf ${INSTALL_DIR}/app
+
+# grab the important bits
 mv autoplex-main/app ${INSTALL_DIR}/app
 mv autoplex-main/pyproject.toml ${INSTALL_DIR}/app
 mv autoplex-main/.infisical.json ${INSTALL_DIR}/app
@@ -78,6 +86,12 @@ fi
 
 # now use `uv` to create the environment
 uv sync
+
+if [ ! -f "${DB_FILE}" ]
+then
+  cd db || exit
+  .venv/bin/python database.py
+fi
 
 systemctl daemon-reload
 systemctl enable autoplex.service
