@@ -19,7 +19,7 @@ I'm going to work on making a web server for interacting with the plex tools.  Y
 
 You can review the script, each step is commented
 ```shell
-bash -c "$(wget -qLO - https://github.com/johnsturgeon/plex-tools/raw/main/scripts/deploy.sh)"
+bash -c "$(wget -qLO - https://github.com/johnsturgeon/autoplex/raw/main/scripts/deploy.sh)"
 ```
 
 ## Scripts
