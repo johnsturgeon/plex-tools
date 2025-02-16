@@ -1,0 +1,12 @@
+{% extends "base.j2" %}
+
+{% block title %}Account{% endblock %}
+
+{% block content %}
+    <h1>Account info for {{ user_name }}</h1>
+    {% if user_name %}
+    	Logged in as {{ user_name }}
+    {% else %}
+         <a href="{{ url_for('logout') }}" class="btn rounded" style="color: #e5a00c; border: 1px solid black;">Log In</a>
+    {% endif %}
+{% endblock %}
