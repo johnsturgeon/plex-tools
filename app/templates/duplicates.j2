@@ -4,10 +4,8 @@
 
 {% block content %}
     <h1>Welcome to Autoplex DeDup tool</h1>
-    <a href="{{ url_for('fetch_duplicates') }}" class="btn rounded" style="color: #e5a00c; border: 1px solid black;">Fetch Duplicates</a>
-    {% if duplicates %}
-    	{% for duplicate in duplicates %}
-        <div class="duplicate">{{ duplicate }}</div>
-        {% endfor %}
-    {% endif %}
+    <h1>Select a Server</h1>
+    {% for server in server_list %}
+        <a href="{{  url_for('duplicates').include_query_params(server_name=server) }}">{{ server }}</a>
+    {% endfor %}
 {% endblock %}
