@@ -16,6 +16,8 @@ class Config:
     APP_CALLBACK_URL: str
     APP_PRODUCT_NAME: str
     COOKIE_RETENTION_DAYS: int
+    DEV_AUTH_TOKEN: str
+    DEV_RESOURCE_ID: str
     ENVIRONMENT: str
     HOSTNAME: str
     PLEX_AUTH_URL: str
@@ -34,6 +36,8 @@ class Config:
             APP_CALLBACK_URL=os.getenv("APP_CALLBACK_URL"),
             APP_PRODUCT_NAME=os.getenv("APP_PRODUCT_NAME"),
             COOKIE_RETENTION_DAYS=int(os.getenv("COOKIE_RETENTION_DAYS")),
+            DEV_AUTH_TOKEN=os.getenv("DEV_AUTH_TOKEN"),
+            DEV_RESOURCE_ID=os.getenv("DEV_RESOURCE_ID"),
             ENVIRONMENT=os.getenv("ENVIRONMENT"),
             HOSTNAME=os.getenv("HOSTNAME"),
             PLEX_AUTH_URL=os.getenv("PLEX_AUTH_URL"),

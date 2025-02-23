@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, List
 
 import uvicorn
 from fastapi import FastAPI, Request, HTTPException, Depends
@@ -86,12 +86,12 @@ async def verify_plex_user(request: Request) -> PlexUser:
     """
     plex_user: Optional[PlexUser] = await get_cookie_user_from_db(request)
     if plex_user:
-        if request.session.get("logged_in"):
+        if request.session.get("token_is_valid"):
             return plex_user
         else:
             # attempt to just re-authenticate the token and log them in
             if await get_plex_user_from_auth_token(plex_user.auth_token):
-                request.session["logged_in"] = True
+                request.session["token_is_valid"] = True
                 return plex_user
 
     if request.cookies.get("plex_uuid"):
@@ -125,8 +125,12 @@ async def root(request: Request):
     )
 
 
-@app.get("/duplicates")
-async def duplicates(request: Request, plex_user: PlexUser = Depends(verify_plex_user)):
+@app.get("/duplicates", name="duplicates")
+async def duplicates(
+    request: Request,
+    plex_user: PlexUser = Depends(verify_plex_user),
+    server_name: Optional[str] = None,
+):
     """
     Render the home page for authenticated Plex users.
 
@@ -135,11 +139,14 @@ async def duplicates(request: Request, plex_user: PlexUser = Depends(verify_plex
     Args:
         request (Request): The incoming HTTP request.
         plex_user (PlexUser): The authenticated Plex user, obtained via dependency injection.
+        server_name (Optional[str]): The name of the server to which the user has chosen.
 
     Returns:
         TemplateResponse: The rendered home page.
     """
-    server_list = await plex_user.server_list()
+    server_list: List[str] = []
+    if server_name is None:
+        server_list = await plex_user.server_list()
     return templates.TemplateResponse(
         "duplicates.j2",
         {

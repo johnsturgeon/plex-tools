@@ -86,7 +86,7 @@ async def callback(request: Request, pin_id: str, pin_code: str):
     auth_token = await _get_auth_token_from_pin(pin_id, pin_code)
     if auth_token:
         plex_user: PlexUser = await upsert_plex_user(auth_token)
-        request.session["logged_in"] = True
+        request.session["token_is_valid"] = True
         redirect_url = request.url_for("root")
         response = RedirectResponse(redirect_url, status_code=status.HTTP_302_FOUND)
         response.set_cookie(

@@ -121,7 +121,9 @@ async def get_server_list(auth_token) -> List:
 
 
 def main():
-    account = MyPlexAccount(token="4Ziabg7sYUcDLLzJYKVz")
+    account = MyPlexAccount(token=config.DEV_AUTH_TOKEN)
+    server = account.resource(config.DEV_RESOURCE_ID)
+    print(server)
     resources = account.resources()
     servers: List[str] = []
     for resource in resources:

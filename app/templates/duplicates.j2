@@ -5,17 +5,7 @@
 {% block content %}
     <h1>Welcome to Autoplex DeDup tool</h1>
     <h1>Select a Server</h1>
-    <form action="{{ url_for('duplicates') }}" method="POST">
-        <div class="form-group">
-            <label for="serverSelect">Server</label>
-            <select class="form-control" id="serverSelect" name="server">
-                {% for server in servers %}
-                    <option value="{{ server.id }}">{{ server.name }}</option>
-                {% endfor %}
-            </select>
-        </div>
-        <button type="submit" class="btn rounded" style="color: #e5a00c; border: 1px solid black;">
-            Submit
-        </button>
-    </form>
+    {% for server in server_list %}
+        <a href="{{  url_for('duplicates').include_query_params(server_name=server) }}">{{ server }}</a>
+    {% endfor %}
 {% endblock %}
