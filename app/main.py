@@ -158,13 +158,15 @@ async def duplicates(
     )
 
 
-@app.get("/account")
-async def account(request: Request, plex_user: PlexUser = Depends(verify_plex_user)):
+@app.get("/preferences")
+async def preferences(
+    request: Request, plex_user: PlexUser = Depends(verify_plex_user)
+):
     """
     Renders the user's account page
     """
     return templates.TemplateResponse(
-        "account.j2",
+        "preferences.j2",
         {"request": request, "plex_user": plex_user, "config": config},
     )
 
