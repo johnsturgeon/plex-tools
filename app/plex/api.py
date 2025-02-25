@@ -1,7 +1,7 @@
 import urllib.parse
-from typing import Optional, List
+from typing import Optional, List, Dict
 import httpx
-from plexapi.myplex import MyPlexAccount
+from plexapi.myplex import MyPlexAccount, MyPlexResource
 from starlette.responses import JSONResponse
 
 from app.config import Config
@@ -9,7 +9,7 @@ from app.config import Config
 config = Config.get_config()
 
 
-async def get_plex_user_data_from_plex(auth_token) -> Optional[dict]:
+async def get_plex_user_data_from_plex(auth_token) -> Optional[Dict]:
     """
     Retrieve Plex user information using an authentication token.
 
@@ -99,7 +99,7 @@ async def create_pin_from_plex() -> dict | None:
     return None
 
 
-async def get_auth_url_from_pin_info(pin_code: str, pin_id: str) -> str:
+def get_auth_url_from_pin_info(pin_code: str, pin_id: str) -> str:
     forward_url = f"{config.APP_CALLBACK_URL}?pin_id={pin_id}&pin_code={pin_code}"
     return (
         f"{config.PLEX_AUTH_URL}?clientID={config.APP_CLIENT_ID}&code={pin_code}"
@@ -110,13 +110,13 @@ async def get_auth_url_from_pin_info(pin_code: str, pin_id: str) -> str:
     )
 
 
-async def get_server_list(auth_token) -> List:
+def get_server_list_from_plex(auth_token) -> List[MyPlexResource]:
     account = MyPlexAccount(token=auth_token)
     resources = account.resources()
-    servers: List[str] = []
+    servers: List[MyPlexResource] = []
     for resource in resources:
         if resource.provides == "server" and resource.owned:
-            servers.append(resource.name)
+            servers.append(resource)
     return servers
 
 
