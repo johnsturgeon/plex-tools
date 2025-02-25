@@ -1,9 +1,11 @@
-from typing import Optional, List
+from typing import Optional, List, Annotated
 
 import uvicorn
-from fastapi import FastAPI, Request, HTTPException, Depends
+from fastapi import FastAPI, Request, HTTPException, Depends, Form
+from pydantic import BaseModel
 from sqlalchemy import Engine
 from starlette import status
+from starlette.responses import RedirectResponse
 from starlette.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 
@@ -12,6 +14,7 @@ from app.db.database import (
     get_engine,
     PlexUser,
     get_plex_user_from_auth_token,
+    PlexServer,
 )
 from app.routers import auth
 from app.config import Config
@@ -129,7 +132,6 @@ async def root(request: Request):
 async def duplicates(
     request: Request,
     plex_user: PlexUser = Depends(verify_plex_user),
-    server_name: Optional[str] = None,
 ):
     """
     Render the home page for authenticated Plex users.
@@ -139,36 +141,59 @@ async def duplicates(
     Args:
         request (Request): The incoming HTTP request.
         plex_user (PlexUser): The authenticated Plex user, obtained via dependency injection.
-        server_name (Optional[str]): The name of the server to which the user has chosen.
 
     Returns:
         TemplateResponse: The rendered home page.
     """
-    server_list: List[str] = []
-    if server_name is None:
-        server_list = await plex_user.server_list()
     return templates.TemplateResponse(
         "duplicates.j2",
         {
             "request": request,
             "plex_user": plex_user,
             "config": config,
-            "server_list": server_list,
         },
     )
 
 
 @app.get("/preferences")
 async def preferences(
-    request: Request, plex_user: PlexUser = Depends(verify_plex_user)
+    request: Request,
+    plex_user: PlexUser = Depends(verify_plex_user),
 ):
     """
     Renders the user's account page
     """
+    plex_servers: List[PlexServer] = plex_user.server_list
+    selected_server_id: Optional[str] = None
+    if plex_user.server:
+        selected_server_id: Optional[str] = plex_user.server.client_id
     return templates.TemplateResponse(
         "preferences.j2",
-        {"request": request, "plex_user": plex_user, "config": config},
+        {
+            "request": request,
+            "plex_user": plex_user,
+            "config": config,
+            "plex_servers": plex_servers,
+            "selected_server_id": selected_server_id,
+        },
     )
+
+
+class PreferenceFormData(BaseModel):
+    server_id: str
+
+
+@app.post("/preferences/save")
+async def save_preferences(
+    request: Request,
+    data: Annotated[PreferenceFormData, Form()],
+    plex_user: PlexUser = Depends(verify_plex_user),
+):
+    if data.server_id:
+        plex_user.set_server(data.server_id)
+    redirect_url = request.url_for("preferences")
+    response = RedirectResponse(url=redirect_url, status_code=status.HTTP_302_FOUND)
+    return response
 
 
 if __name__ == "__main__":

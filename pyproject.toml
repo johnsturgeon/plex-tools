@@ -10,6 +10,7 @@ dependencies = [
     "jinja2>=3.1.5",
     "plexapi>=4.16.1",
     "python-dotenv>=1.0.1",
+    "python-multipart>=0.0.20",
     "ruff>=0.9.4",
     "sqlmodel>=0.0.22",
     "uvicorn>=0.34.0",

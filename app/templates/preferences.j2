@@ -4,4 +4,17 @@
 
 {% block content %}
     <h1>Preferences for {{ plex_user.name }}</h1>
+    <form action="{{ url_for('save_preferences') }}" method="POST">
+        <select name="server_id" class="form-select" aria-label="Default select example">
+            {% for server in plex_servers %}
+                {% set selected_text = "" %}
+                {% if server.client_id == selected_server_id %}
+                    {% set selected_text = "selected" %}
+                {% endif %}
+                <option {{ selected_text }} value="{{ server.client_id }}">{{ server.name }}</option>
+            {% endfor %}
+        </select>
+        <button type="submit" class="btn btn-primary">Submit</button>
+    </form>
+
 {% endblock %}

@@ -4,8 +4,4 @@
 
 {% block content %}
     <h1>Welcome to Autoplex DeDup tool</h1>
-    <h1>Select a Server</h1>
-    {% for server in server_list %}
-        <a href="{{  url_for('duplicates').include_query_params(server_name=server) }}">{{ server }}</a>
-    {% endfor %}
 {% endblock %}
