@@ -1,6 +1,7 @@
 import urllib.parse
 from typing import Optional, List, Dict
 import httpx
+from plexapi.library import MusicSection
 from plexapi.myplex import MyPlexAccount, MyPlexResource
 from starlette.responses import JSONResponse
 
@@ -120,22 +121,21 @@ def get_server_list_from_plex(auth_token) -> List[MyPlexResource]:
     return servers
 
 
-def main():
-    account = MyPlexAccount(token=config.DEV_AUTH_TOKEN)
-    server = account.resource(config.DEV_RESOURCE_ID)
-    print(server)
-    resources = account.resources()
-    servers: List[str] = []
-    for resource in resources:
-        if resource.provides == "server" and resource.owned:
-            plex = resource.connect()
-            for section in plex.library.sections():
-                print(section.title)
-            servers.append(resource.name)
+def get_library_list_from_plex(auth_token: str, server_id: str) -> List[MusicSection]:
+    account = MyPlexAccount(token=auth_token)
+    server = account.resource(server_id)
+    libraries: List[MusicSection] = []
+    plex = server.connect()
+    for section in plex.library.sections():
+        libraries.append(section)
+    return libraries
 
-    for server in servers:
-        plex = account.resource(server).connect()
-        for section in plex.library.sections():
+
+def main():
+    for section in get_library_list_from_plex(
+        config.DEV_AUTH_TOKEN, config.DEV_RESOURCE_ID
+    ):
+        if section.type == "artist":
             print(section.title)
 
 

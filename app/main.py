@@ -15,6 +15,7 @@ from app.db.database import (
     PlexUser,
     get_plex_user_from_auth_token,
     PlexServer,
+    PlexLibrary,
 )
 from app.routers import auth
 from app.config import Config
@@ -164,9 +165,13 @@ async def preferences(
     Renders the user's account page
     """
     plex_servers: List[PlexServer] = plex_user.server_list
+    plex_music_libraries: List[PlexLibrary] = plex_user.music_library_list
     selected_server_id: Optional[str] = None
+    selected_music_library_id: Optional[str] = None
     if plex_user.server:
         selected_server_id: Optional[str] = plex_user.server.client_id
+    if plex_user.music_library:
+        selected_music_library_id: Optional[str] = plex_user.music_library.uuid
     return templates.TemplateResponse(
         "preferences.j2",
         {
@@ -175,12 +180,15 @@ async def preferences(
             "config": config,
             "plex_servers": plex_servers,
             "selected_server_id": selected_server_id,
+            "plex_music_libraries": plex_music_libraries,
+            "selected_music_library_id": selected_music_library_id,
         },
     )
 
 
 class PreferenceFormData(BaseModel):
-    server_id: str
+    server_id: Optional[str] = None
+    music_library_id: Optional[str] = None
 
 
 @app.post("/preferences/save")
@@ -191,6 +199,8 @@ async def save_preferences(
 ):
     if data.server_id:
         plex_user.set_server(data.server_id)
+    if data.music_library_id:
+        plex_user.set_music_library(data.music_library_id)
     redirect_url = request.url_for("preferences")
     response = RedirectResponse(url=redirect_url, status_code=status.HTTP_302_FOUND)
     return response

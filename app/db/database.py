@@ -1,10 +1,15 @@
 from typing import Optional, List
 
+from plexapi.library import MusicSection
 from pydantic import computed_field
 from sqlalchemy import create_engine, UniqueConstraint
 from sqlmodel import SQLModel, Field, Session, select
 
-from app.plex.api import get_plex_user_data_from_plex, get_server_list_from_plex
+from app.plex.api import (
+    get_plex_user_data_from_plex,
+    get_server_list_from_plex,
+    get_library_list_from_plex,
+)
 
 
 class Preference(SQLModel, table=True):
@@ -23,6 +28,14 @@ class PlexServer(SQLModel, table=False):
     name: str
 
 
+class PlexLibrary(SQLModel, table=False):
+    """Class representing a Plex Library"""
+
+    server_id: str
+    uuid: str
+    title: str
+
+
 class PlexUser(SQLModel, table=True):
     """Model representing a Plex user."""
 
@@ -38,10 +51,11 @@ class PlexUser(SQLModel, table=True):
             # Check if the preference already exists
             # noinspection Pydantic
 
-            statement = select(Preference).where(
-                Preference.user_id == self.plex_uuid
-                and Preference.key == key
-                and Preference.value == value
+            statement = (
+                select(Preference)
+                .where(Preference.user_id == self.plex_uuid)
+                .where(Preference.key == key)
+                .where(Preference.value == value)
             )
             # noinspection PyTypeChecker
             existing_preference = session.exec(statement).first()
@@ -69,6 +83,25 @@ class PlexUser(SQLModel, table=True):
 
     @computed_field
     @property
+    def music_library_list(self) -> List[PlexLibrary]:
+        if self.server is None:
+            return []
+        library_list: List[PlexLibrary] = []
+        library: MusicSection
+        for library in get_library_list_from_plex(
+            self.auth_token, self.server.client_id
+        ):
+            if library.type == "artist":
+                library: PlexLibrary = PlexLibrary(
+                    server_id=self.server.client_id,
+                    uuid=library.uuid,
+                    title=library.title,
+                )
+                library_list.append(library)
+        return library_list
+
+    @computed_field
+    @property
     def preferences(self) -> List[Preference]:
         preferences: List[Preference] = []
         with Session(get_engine()) as session:
@@ -93,9 +126,26 @@ class PlexUser(SQLModel, table=True):
                 assert False, "The server preference did not match the list of servers"
         return None
 
+    @computed_field
+    @property
+    def music_library(self) -> Optional[PlexLibrary]:
+        for preference in self.preferences:
+            if preference.key == "music_library":
+                library_pref = preference
+                for library in self.music_library_list:
+                    if library.uuid == library_pref.value:
+                        return library
+                assert False, (
+                    "The library preference did not match the list of libraries"
+                )
+        return None
+
     # -- public methods --
     def set_server(self, value):
         self._set_preference("server", value)
+
+    def set_music_library(self, value):
+        self._set_preference("music_library", value)
 
 
 async def upsert_plex_user(auth_token: str):
