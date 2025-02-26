@@ -5,7 +5,10 @@
 {% block content %}
     <h1>Preferences for {{ plex_user.name }}</h1>
     <form action="{{ url_for('save_preferences') }}" method="POST">
-        <select name="server_id" class="form-select" aria-label="Default select example">
+        <select name="server_id" class="form-select" aria-label="Plex Server Select">
+            {% if not selected_server_id %}
+                <option disabled selected value> -- select a server --</option>
+            {% endif %}
             {% for server in plex_servers %}
                 {% set selected_text = "" %}
                 {% if server.client_id == selected_server_id %}
@@ -16,5 +19,26 @@
         </select>
         <button type="submit" class="btn btn-primary">Submit</button>
     </form>
+    {% if selected_server_id %}
+        <form action="{{ url_for('save_preferences') }}" method="POST">
+            <select name="music_library_id" class="form-select" aria-label="Plex Music Library Select">
+                {% if not selected_music_library_id %}
+                    <option disabled selected value> -- select a library --</option>
+                {% endif %}
+                {% for music_library in plex_music_libraries %}
+                    {% set selected_text = "" %}
+                    {% if music_library.uuid == selected_music_library_id %}
+                        {% set selected_text = "selected" %}
+                    {% endif %}
+                    <option
+                            {{ selected_text }} value="{{ music_library.uuid }}"
+                    >
+                        {{ music_library.title }}
+                    </option>
+                {% endfor %}
+            </select>
+            <button type="submit" class="btn btn-primary">Submit</button>
+        </form>
+    {% endif %}
 
 {% endblock %}
