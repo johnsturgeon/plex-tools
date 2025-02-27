@@ -18,7 +18,7 @@ class Preference(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     user_id: str = Field(index=True, foreign_key="plexuser.id")
     key: str
-    value: str
+    value: str | None = Field(default=None, nullable=True)
 
 
 class PlexServer(SQLModel, table=True):
@@ -127,7 +127,7 @@ class PlexUser(SQLModel, table=True):
     @property
     def music_library(self) -> Optional[PlexLibrary]:
         for preference in self.preferences:
-            if preference.key == "music_library":
+            if preference.key == "music_library" and preference.value:
                 library_pref = preference
                 for library in self.music_library_list:
                     if library.uuid == library_pref.value:
@@ -139,9 +139,13 @@ class PlexUser(SQLModel, table=True):
 
     # -- public methods --
     def set_server(self, value):
+        """
+        Clears the 'library' preference and sets the new server preference.
+        """
+        self.set_music_library()
         self._set_preference("server", value)
 
-    def set_music_library(self, value):
+    def set_music_library(self, value: Optional[str] = None):
         self._set_preference("music_library", value)
 
     def sync_libraries_with_db(self):
