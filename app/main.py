@@ -33,31 +33,6 @@ engine: Engine = get_engine()
 
 app.include_router(auth.router)
 
-
-@app.middleware("http")
-async def some_middleware(request: Request, call_next):
-    """
-    Middleware to preserve the session cookie across HTTP responses.
-
-    This middleware intercepts incoming HTTP requests and ensures that if the session cookie is present,
-    it is set as an HTTP-only cookie in the outgoing response.
-
-    Args:
-        request (Request): The incoming HTTP request.
-        call_next (Callable): The next middleware or route handler in the chain.
-
-    Returns:
-        Response: The HTTP response with the session cookie set (if present).
-    """
-    response = await call_next(request)
-    session = request.cookies.get("session")
-    if session:
-        response.set_cookie(
-            key="session", value=request.cookies.get("session"), httponly=True
-        )
-    return response
-
-
 # Initialize the Jinja2 templates directory.
 templates = Jinja2Templates(directory="templates")
 
@@ -91,6 +66,9 @@ async def verify_plex_user(request: Request) -> PlexUser:
     plex_user: Optional[PlexUser] = await get_cookie_user_from_db(request)
     if plex_user:
         if request.session.get("token_is_valid"):
+            if request.session.get("db_is_synced") is None:
+                plex_user.sync_libraries_with_db()
+                request.session["db_is_synced"] = True
             return plex_user
         else:
             # attempt to just re-authenticate the token and log them in
@@ -100,6 +78,7 @@ async def verify_plex_user(request: Request) -> PlexUser:
 
     if request.cookies.get("plex_uuid"):
         request.cookies.pop("plex_uuid")
+
     raise HTTPException(
         status_code=status.HTTP_307_TEMPORARY_REDIRECT,
         headers={"Location": "/auth/login"},
