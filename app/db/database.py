@@ -187,7 +187,7 @@ async def upsert_plex_user(auth_token: str):
     """Updates the user, or inserts if none exists"""
     plex_user: PlexUser = await get_plex_user_from_auth_token(auth_token)
     plex_uuid: str = plex_user.plex_uuid
-    with Session(get_engine()) as session:
+    with Session(get_engine(), expire_on_commit=False) as session:
         # Check if the user already exists
         # noinspection Pydantic
         statement = select(PlexUser).where(PlexUser.plex_uuid == plex_uuid)
