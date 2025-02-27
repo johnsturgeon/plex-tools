@@ -1,14 +1,14 @@
 from typing import Optional, List
 
+from plexapi import exceptions
 from plexapi.library import MusicSection
 from pydantic import computed_field
-from sqlalchemy import create_engine, UniqueConstraint
+from sqlalchemy import create_engine, UniqueConstraint, delete
 from sqlmodel import SQLModel, Field, Session, select
 
 from app.plex.api import (
     get_plex_user_data_from_plex,
     get_server_list_from_plex,
-    get_library_list_from_plex,
 )
 
 
@@ -21,17 +21,21 @@ class Preference(SQLModel, table=True):
     value: str
 
 
-class PlexServer(SQLModel, table=False):
+class PlexServer(SQLModel, table=True):
     """Class representing a Plex Server - no persistence"""
 
+    id: int | None = Field(default=None, primary_key=True)
+    user_id: str = Field(index=True, foreign_key="plexuser.id")
     client_id: str
     name: str
 
 
-class PlexLibrary(SQLModel, table=False):
+class PlexLibrary(SQLModel, table=True):
     """Class representing a Plex Library"""
 
-    server_id: str
+    id: int | None = Field(default=None, primary_key=True)
+    user_id: str = Field(index=True, foreign_key="plexuser.id")
+    server_id: str = Field(index=True, foreign_key="plexserver.id")
     uuid: str
     title: str
 
@@ -55,7 +59,6 @@ class PlexUser(SQLModel, table=True):
                 select(Preference)
                 .where(Preference.user_id == self.plex_uuid)
                 .where(Preference.key == key)
-                .where(Preference.value == value)
             )
             # noinspection PyTypeChecker
             existing_preference = session.exec(statement).first()
@@ -73,32 +76,26 @@ class PlexUser(SQLModel, table=True):
     @computed_field
     @property
     def server_list(self) -> List[PlexServer]:
-        server_list: List[PlexServer] = []
-        for server in get_server_list_from_plex(self.auth_token):
-            plex_server: PlexServer = PlexServer(
-                client_id=server.clientIdentifier, name=server.name
-            )
-            server_list.append(plex_server)
-        return server_list
+        with Session(get_engine()) as session:
+            # noinspection Pydantic
+            statement = select(PlexServer).where(PlexServer.user_id == self.plex_uuid)
+            # noinspection PyTypeChecker
+            return session.exec(statement).all()
 
     @computed_field
     @property
     def music_library_list(self) -> List[PlexLibrary]:
         if self.server is None:
             return []
-        library_list: List[PlexLibrary] = []
-        library: MusicSection
-        for library in get_library_list_from_plex(
-            self.auth_token, self.server.client_id
-        ):
-            if library.type == "artist":
-                library: PlexLibrary = PlexLibrary(
-                    server_id=self.server.client_id,
-                    uuid=library.uuid,
-                    title=library.title,
-                )
-                library_list.append(library)
-        return library_list
+        with Session(get_engine()) as session:
+            # noinspection Pydantic
+            statement = (
+                select(PlexLibrary)
+                .where(PlexLibrary.server_id == self.server.client_id)
+                .where(PlexLibrary.user_id == self.plex_uuid)
+            )
+            # noinspection PyTypeChecker
+            return session.exec(statement).all()
 
     @computed_field
     @property
@@ -146,6 +143,44 @@ class PlexUser(SQLModel, table=True):
 
     def set_music_library(self, value):
         self._set_preference("music_library", value)
+
+    def sync_libraries_with_db(self):
+        # First delete all records from `plexserver` and `plexlibrary`
+        with Session(get_engine()) as session:
+            # Check if the user already exists
+            statement = delete(PlexServer)
+            # noinspection PyTypeChecker
+            session.exec(statement)
+            session.commit()
+            statement = delete(PlexLibrary)
+            # noinspection PyTypeChecker
+            session.exec(statement)
+            session.commit()
+            for server in get_server_list_from_plex(self.auth_token):
+                plex_server: PlexServer = PlexServer(
+                    user_id=self.plex_uuid,
+                    client_id=server.clientIdentifier,
+                    name=server.name,
+                )
+                try:
+                    plex = server.connect()
+                except exceptions.NotFound as e:
+                    # add some logging here
+                    print(e)
+                    continue
+                session.add(plex_server)
+
+                library: MusicSection
+                for library in plex.library.sections():
+                    if library.type == "artist":
+                        library: PlexLibrary = PlexLibrary(
+                            user_id=self.plex_uuid,
+                            server_id=plex_server.client_id,
+                            uuid=library.uuid,
+                            title=library.title,
+                        )
+                        session.add(library)
+            session.commit()
 
 
 async def upsert_plex_user(auth_token: str):

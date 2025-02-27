@@ -61,7 +61,7 @@ async def login():
 
     pin_code = request_pin_info.get("code")
     pin_id = request_pin_info.get("id")
-    auth_url = await get_auth_url_from_pin_info(pin_code=pin_code, pin_id=pin_id)
+    auth_url = get_auth_url_from_pin_info(pin_code=pin_code, pin_id=pin_id)
     return RedirectResponse(auth_url)
 
 
