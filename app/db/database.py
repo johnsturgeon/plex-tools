@@ -3,7 +3,7 @@ from typing import Optional, List
 from plexapi import exceptions
 from plexapi.library import MusicSection
 from pydantic import computed_field
-from sqlalchemy import create_engine, UniqueConstraint, delete
+from sqlalchemy import create_engine, delete
 from sqlmodel import SQLModel, Field, Session, select
 
 from app.plex.api import (
@@ -15,37 +15,32 @@ from app.plex.api import (
 class Preference(SQLModel, table=True):
     """Class representing a preference"""
 
-    id: int | None = Field(default=None, primary_key=True)
-    user_id: str = Field(index=True, foreign_key="plexuser.id")
-    key: str
+    user_id: str = Field(index=True, primary_key=True, foreign_key="plexuser.uuid")
+    key: str = Field(primary_key=True)
     value: str | None = Field(default=None, nullable=True)
 
 
 class PlexServer(SQLModel, table=True):
     """Class representing a Plex Server - no persistence"""
 
-    id: int | None = Field(default=None, primary_key=True)
-    user_id: str = Field(index=True, foreign_key="plexuser.id")
-    client_id: str
+    uuid: str = Field(primary_key=True)
     name: str
+    user_id: str = Field(index=True, foreign_key="plexuser.uuid")
 
 
 class PlexLibrary(SQLModel, table=True):
     """Class representing a Plex Library"""
 
-    id: int | None = Field(default=None, primary_key=True)
-    user_id: str = Field(index=True, foreign_key="plexuser.id")
-    server_id: str = Field(index=True, foreign_key="plexserver.id")
-    uuid: str
+    uuid: str = Field(primary_key=True)
     title: str
+    user_id: str = Field(index=True, foreign_key="plexuser.uuid")
+    server_id: str = Field(index=True, foreign_key="plexserver.uuid")
 
 
 class PlexUser(SQLModel, table=True):
     """Model representing a Plex user."""
 
-    __table_args__ = (UniqueConstraint("plex_uuid"),)
-    id: int | None = Field(default=None, primary_key=True)
-    plex_uuid: str = Field(index=True)
+    uuid: str = Field(primary_key=True)
     auth_token: str
     name: str
 
@@ -53,11 +48,11 @@ class PlexUser(SQLModel, table=True):
     def _set_preference(self, key, value):
         with Session(get_engine()) as session:
             # Check if the preference already exists
-            # noinspection Pydantic
 
+            # noinspection Pydantic
             statement = (
                 select(Preference)
-                .where(Preference.user_id == self.plex_uuid)
+                .where(Preference.user_id == self.uuid)
                 .where(Preference.key == key)
             )
             # noinspection PyTypeChecker
@@ -68,7 +63,7 @@ class PlexUser(SQLModel, table=True):
                 existing_preference.value = value
             else:
                 # Insert new preference
-                session.add(Preference(user_id=self.plex_uuid, key=key, value=value))
+                session.add(Preference(user_id=self.uuid, key=key, value=value))
 
             session.commit()  # Commit changes
 
@@ -78,7 +73,7 @@ class PlexUser(SQLModel, table=True):
     def server_list(self) -> List[PlexServer]:
         with Session(get_engine()) as session:
             # noinspection Pydantic
-            statement = select(PlexServer).where(PlexServer.user_id == self.plex_uuid)
+            statement = select(PlexServer).where(PlexServer.user_id == self.uuid)
             # noinspection PyTypeChecker
             return session.exec(statement).all()
 
@@ -91,8 +86,8 @@ class PlexUser(SQLModel, table=True):
             # noinspection Pydantic
             statement = (
                 select(PlexLibrary)
-                .where(PlexLibrary.server_id == self.server.client_id)
-                .where(PlexLibrary.user_id == self.plex_uuid)
+                .where(PlexLibrary.server_id == self.server.uuid)
+                .where(PlexLibrary.user_id == self.uuid)
             )
             # noinspection PyTypeChecker
             return session.exec(statement).all()
@@ -104,7 +99,7 @@ class PlexUser(SQLModel, table=True):
         with Session(get_engine()) as session:
             # Check if the user already exists
             # noinspection Pydantic
-            statement = select(Preference).where(Preference.user_id == self.plex_uuid)
+            statement = select(Preference).where(Preference.user_id == self.uuid)
             # noinspection PyTypeChecker
             db_prefs = session.exec(statement)
             for preference in db_prefs:
@@ -118,7 +113,7 @@ class PlexUser(SQLModel, table=True):
             if preference.key == "server":
                 server_pref = preference
                 for server in self.server_list:
-                    if server.client_id == server_pref.value:
+                    if server.uuid == server_pref.value:
                         return server
                 assert False, "The server preference did not match the list of servers"
         return None
@@ -162,8 +157,8 @@ class PlexUser(SQLModel, table=True):
             session.commit()
             for server in get_server_list_from_plex(self.auth_token):
                 plex_server: PlexServer = PlexServer(
-                    user_id=self.plex_uuid,
-                    client_id=server.clientIdentifier,
+                    user_id=self.uuid,
+                    uuid=server.clientIdentifier,
                     name=server.name,
                 )
                 try:
@@ -178,8 +173,8 @@ class PlexUser(SQLModel, table=True):
                 for library in plex.library.sections():
                     if library.type == "artist":
                         library: PlexLibrary = PlexLibrary(
-                            user_id=self.plex_uuid,
-                            server_id=plex_server.client_id,
+                            user_id=self.uuid,
+                            server_id=plex_server.uuid,
                             uuid=library.uuid,
                             title=library.title,
                         )
@@ -190,11 +185,11 @@ class PlexUser(SQLModel, table=True):
 async def upsert_plex_user(auth_token: str):
     """Updates the user, or inserts if none exists"""
     plex_user: PlexUser = await get_plex_user_from_auth_token(auth_token)
-    plex_uuid: str = plex_user.plex_uuid
+    user_uuid: str = plex_user.uuid
     with Session(get_engine(), expire_on_commit=False) as session:
         # Check if the user already exists
         # noinspection Pydantic
-        statement = select(PlexUser).where(PlexUser.plex_uuid == plex_uuid)
+        statement = select(PlexUser).where(PlexUser.uuid == user_uuid)
         # noinspection PyTypeChecker
         existing_user = session.exec(statement).first()
         if existing_user:
@@ -226,15 +221,15 @@ async def get_plex_user_from_auth_token(auth_token) -> Optional[PlexUser]:
     user = PlexUser(
         name=response_json["username"],
         auth_token=auth_token,
-        plex_uuid=response_json["uuid"],
+        uuid=response_json["uuid"],
     )
     return user
 
 
-def find_user_by_plex_uuid(plex_uuid: str) -> Optional[PlexUser]:
+def find_user_by_uuid(uuid: str) -> Optional[PlexUser]:
     with Session(get_engine()) as session:
         # noinspection Pydantic
-        statement = select(PlexUser).where(PlexUser.plex_uuid == plex_uuid)
+        statement = select(PlexUser).where(PlexUser.uuid == uuid)
         # noinspection PyTypeChecker
         result = session.exec(statement)
         return result.first()

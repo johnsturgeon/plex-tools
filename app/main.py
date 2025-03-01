@@ -10,7 +10,7 @@ from starlette.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 
 from app.db.database import (
-    find_user_by_plex_uuid,
+    find_user_by_uuid,
     get_engine,
     PlexUser,
     get_plex_user_from_auth_token,
@@ -41,9 +41,9 @@ user_tokens = {}
 
 
 async def get_cookie_user_from_db(request: Request) -> Optional[PlexUser]:
-    plex_uuid = request.cookies.get("plex_uuid")
-    if plex_uuid:
-        return find_user_by_plex_uuid(plex_uuid)
+    user_uuid = request.cookies.get("user_uuid")
+    if user_uuid:
+        return find_user_by_uuid(user_uuid)
 
 
 async def verify_plex_user(request: Request) -> PlexUser:
@@ -76,8 +76,8 @@ async def verify_plex_user(request: Request) -> PlexUser:
                 request.session["token_is_valid"] = True
                 return plex_user
 
-    if request.cookies.get("plex_uuid"):
-        request.cookies.pop("plex_uuid")
+    if request.cookies.get("user_uuid"):
+        request.cookies.pop("user_uuid")
 
     raise HTTPException(
         status_code=status.HTTP_307_TEMPORARY_REDIRECT,
@@ -148,7 +148,7 @@ async def preferences(
     selected_server_id: Optional[str] = None
     selected_music_library_id: Optional[str] = None
     if plex_user.server:
-        selected_server_id: Optional[str] = plex_user.server.client_id
+        selected_server_id: Optional[str] = plex_user.server.uuid
     if plex_user.music_library:
         selected_music_library_id: Optional[str] = plex_user.music_library.uuid
     return templates.TemplateResponse(
