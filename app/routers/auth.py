@@ -90,8 +90,8 @@ async def callback(request: Request, pin_id: str, pin_code: str):
         redirect_url = request.url_for("root")
         response = RedirectResponse(redirect_url, status_code=status.HTTP_302_FOUND)
         response.set_cookie(
-            key="plex_uuid",
-            value=plex_user.plex_uuid,
+            key="user_uuid",
+            value=plex_user.uuid,
             max_age=COOKIE_TIME_OUT,
         )
     else:
