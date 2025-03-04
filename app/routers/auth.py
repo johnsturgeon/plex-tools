@@ -1,12 +1,14 @@
 from typing import Optional, Final
 
 from fastapi import APIRouter
+from sqlmodel import Session
 from starlette import status
 from starlette.requests import Request
 from starlette.responses import JSONResponse, RedirectResponse
 
 from app.config import Config
-from app.db.database import upsert_plex_user, PlexUser
+from app.db.database import engine
+from app.db.models import PlexUser, upsert_plex_user
 from app.plex.api import (
     fetch_auth_token_from_plex,
     create_pin_from_plex,
@@ -43,7 +45,7 @@ async def _get_auth_token_from_pin(pin_id: str, pin_code: str) -> Optional[str]:
 
 
 @router.get("/login")
-async def login():
+async def login(request: Request) -> JSONResponse:
     """
     Initiate the Plex login process by generating a PIN and redirecting to Plex's authentication page.
 
@@ -55,14 +57,17 @@ async def login():
         RedirectResponse: A redirection to the Plex authentication URL, or a JSONResponse with an error message
                           if the PIN generation fails.
     """
+    if request.cookies.get("saved_user_uuid"):
+        request.cookies.pop("saved_user_uuid")
     request_pin_info = await create_pin_from_plex()
-    if not request_pin_info:
-        return JSONResponse(status_code=500, content={"error": "Invalid PIN response"})
+    if request_pin_info:
+        pin_code = request_pin_info.get("code")
+        pin_id = request_pin_info.get("id")
+        auth_url = get_auth_url_from_pin_info(pin_code=pin_code, pin_id=pin_id)
+        # noinspection PyTypeChecker
+        return RedirectResponse(auth_url)
 
-    pin_code = request_pin_info.get("code")
-    pin_id = request_pin_info.get("id")
-    auth_url = get_auth_url_from_pin_info(pin_code=pin_code, pin_id=pin_id)
-    return RedirectResponse(auth_url)
+    return JSONResponse(status_code=500, content={"error": "Invalid PIN response"})
 
 
 @router.get("/callback")
@@ -85,15 +90,16 @@ async def callback(request: Request, pin_id: str, pin_code: str):
     """
     auth_token = await _get_auth_token_from_pin(pin_id, pin_code)
     if auth_token:
-        plex_user: PlexUser = await upsert_plex_user(auth_token)
-        request.session["token_is_valid"] = True
-        redirect_url = request.url_for("root")
-        response = RedirectResponse(redirect_url, status_code=status.HTTP_302_FOUND)
-        response.set_cookie(
-            key="user_uuid",
-            value=plex_user.uuid,
-            max_age=COOKIE_TIME_OUT,
-        )
+        with Session(engine) as db_session:
+            plex_user: PlexUser = await upsert_plex_user(db_session, auth_token)
+            request.session["user_uuid"] = plex_user.uuid
+            redirect_url = request.url_for("root")
+            response = RedirectResponse(redirect_url, status_code=status.HTTP_302_FOUND)
+            response.set_cookie(
+                key="saved_user_uuid",
+                value=plex_user.uuid,
+                max_age=COOKIE_TIME_OUT,
+            )
     else:
         redirect_url = request.url_for("login")
         response = RedirectResponse(redirect_url, status_code=status.HTTP_302_FOUND)
