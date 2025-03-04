@@ -1,6 +1,7 @@
 import urllib.parse
 from typing import Optional, List, Dict
 import httpx
+from plexapi.audio import Track
 from plexapi.library import MusicSection
 from plexapi.myplex import MyPlexAccount, MyPlexResource
 from starlette.responses import JSONResponse
@@ -131,12 +132,23 @@ def get_library_list_from_plex(auth_token: str, server_id: str) -> List[MusicSec
     return libraries
 
 
+def get_track_list_from_plex_library(
+    auth_token: str, server_id: str, library_id: int
+) -> List[Track]:
+    account = MyPlexAccount(token=auth_token)
+    server = account.resource(server_id)
+    plex = server.connect()
+    library = plex.library.sectionByID(library_id)
+    all_tracks = library.searchTracks()
+    return all_tracks
+
+
 def main():
-    for section in get_library_list_from_plex(
-        config.DEV_AUTH_TOKEN, config.DEV_RESOURCE_ID
-    ):
-        if section.type == "artist":
-            print(section.title)
+    track_list: List[Track] = get_track_list_from_plex_library(
+        config.DEV_AUTH_TOKEN, config.DEV_RESOURCE_ID, 12
+    )
+    for track in track_list:
+        print(track.key)
 
 
 if __name__ == "__main__":

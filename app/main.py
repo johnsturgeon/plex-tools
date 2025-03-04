@@ -1,21 +1,22 @@
-from typing import Optional, List, Annotated
+from typing import Optional, List, Annotated, Dict
 
 import uvicorn
 from fastapi import FastAPI, Request, HTTPException, Depends, Form
 from pydantic import BaseModel
-from sqlalchemy import Engine
+from sqlalchemy import func
+from sqlmodel import Session, select
 from starlette import status
 from starlette.responses import RedirectResponse
 from starlette.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 
-from app.db.database import (
-    find_user_by_uuid,
-    get_engine,
+from app.db.database import create_db_and_tables, engine
+from app.db.models import (
     PlexUser,
-    get_plex_user_from_auth_token,
     PlexServer,
     PlexLibrary,
+    query_user_by_uuid,
+    PlexTrack,
 )
 from app.routers import auth
 from app.config import Config
@@ -27,57 +28,41 @@ config = Config.get_config()
 # Initialize the FastAPI app and add session middleware.
 app = FastAPI()
 # noinspection PyTypeChecker
-app.add_middleware(SessionMiddleware, secret_key=config.SESSION_SECRET_KEY)
+app.add_middleware(
+    SessionMiddleware, secret_key=config.SESSION_SECRET_KEY, max_age=3600
+)
 
-engine: Engine = get_engine()
+
+create_db_and_tables()
 
 app.include_router(auth.router)
 
 # Initialize the Jinja2 templates directory.
 templates = Jinja2Templates(directory="templates")
 
-# A simple in-memory store for user tokens (if needed in the future).
-user_tokens = {}
+
+def get_session():
+    with Session(engine) as session:
+        yield session
 
 
-async def get_cookie_user_from_db(request: Request) -> Optional[PlexUser]:
-    user_uuid = request.cookies.get("user_uuid")
-    if user_uuid:
-        return find_user_by_uuid(user_uuid)
-
-
-async def verify_plex_user(request: Request) -> PlexUser:
+async def verify_plex_user(request: Request) -> str:
     """
     Verify the Plex user from the current session or redirect to the login if not authenticated.
-
-    This function attempts to retrieve the Plex user information using the 'auth_token' stored in the cookies.
-    If the token is valid, it returns a PlexUser object. Otherwise, it raises an HTTPException to trigger a
-    redirection to the login route.
 
     Args:
         request (Request): The incoming HTTP request.
 
     Returns:
-        PlexUser: The authenticated Plex user.
+        str: The authenticated Plex user uuid.
 
     Raises:
         HTTPException: If the user is not authenticated, with a temporary redirect header to the login page.
     """
-    plex_user: Optional[PlexUser] = await get_cookie_user_from_db(request)
-    if plex_user:
-        if request.session.get("token_is_valid"):
-            if request.session.get("db_is_synced") is None:
-                plex_user.sync_libraries_with_db()
-                request.session["db_is_synced"] = True
-            return plex_user
-        else:
-            # attempt to just re-authenticate the token and log them in
-            if await get_plex_user_from_auth_token(plex_user.auth_token):
-                request.session["token_is_valid"] = True
-                return plex_user
 
-    if request.cookies.get("user_uuid"):
-        request.cookies.pop("user_uuid")
+    user_uuid: Optional[str] = request.session.get("user_uuid")
+    if user_uuid:
+        return user_uuid
 
     raise HTTPException(
         status_code=status.HTTP_307_TEMPORARY_REDIRECT,
@@ -85,33 +70,31 @@ async def verify_plex_user(request: Request) -> PlexUser:
     )
 
 
+async def verify_library_db_synced(request: Request):
+    if not request.session.get("db_is_synced"):
+        user_uuid: Optional[str] = request.session.get("user_uuid")
+        if user_uuid:
+            with Session(engine) as session:
+                plex_user: PlexUser = query_user_by_uuid(session, user_uuid)
+                plex_user.sync_libraries_with_db(session)
+                request.session["db_is_synced"] = True
+
+
+async def verify_tracks_db_synced(request: Request):
+    if not request.session.get("tracks_are_synced"):
+        user_uuid: Optional[str] = request.session.get("user_uuid")
+        if user_uuid:
+            with Session(engine) as session:
+                plex_user: PlexUser = query_user_by_uuid(session, user_uuid)
+                plex_user.sync_tracks_with_db(session)
+                request.session["tracks_are_synced"] = True
+
+
 @app.get("/")
-async def root(request: Request):
-    """
-    Render the home page for authenticated Plex users.
-
-    This route handler renders the home page template with the authenticated user's information.
-
-    Args:
-        request (Request): The incoming HTTP request.
-
-    Returns:
-        TemplateResponse: The rendered home page.
-    """
-    user_name: Optional[str] = None
-    plex_user: PlexUser = await get_cookie_user_from_db(request)
-    if plex_user:
-        user_name: str = plex_user.name
-    return templates.TemplateResponse(
-        "home.j2",
-        {"request": request, "user_name": user_name, "config": config},
-    )
-
-
-@app.get("/duplicates", name="duplicates")
-async def duplicates(
+async def root(
     request: Request,
-    plex_user: PlexUser = Depends(verify_plex_user),
+    user_uuid: Optional[str] = Depends(verify_plex_user),
+    session: Session = Depends(get_session),
 ):
     """
     Render the home page for authenticated Plex users.
@@ -120,17 +103,63 @@ async def duplicates(
 
     Args:
         request (Request): The incoming HTTP request.
-        plex_user (PlexUser): The authenticated Plex user, obtained via dependency injection.
+        user_uuid (Optional[str]): The UUID of the authenticated user.
+        session (Optional[Session]): The current session object.
 
     Returns:
         TemplateResponse: The rendered home page.
     """
+    plex_user: PlexUser = query_user_by_uuid(session, user_uuid)
+    return templates.TemplateResponse(
+        "home.j2",
+        {"request": request, "plex_user": plex_user, "config": config},
+    )
+
+
+# noinspection Pydantic,PyTypeChecker
+@app.get("/duplicates", name="duplicates")
+async def duplicates(
+    request: Request,
+    user_uuid: Optional[str] = Depends(verify_plex_user),
+    session: Session = Depends(get_session),
+    _=Depends(verify_library_db_synced),
+    __=Depends(verify_tracks_db_synced),
+):
+    """
+    Render the home page for authenticated Plex users.
+
+    This route handler renders the home page template with the authenticated user's information.
+
+    Args:
+        request (Request): The incoming HTTP request.
+        user_uuid (Optional[str]): The UUID of the authenticated user.
+        session (Optional[Session]): The current session object.
+        _: verify that the database has been synced with the Plex server.
+        __: Verify that the library tracks have been synced to the DB.
+
+    Returns:
+        TemplateResponse: The rendered home page.
+    """
+    plex_user: PlexUser = query_user_by_uuid(session, user_uuid)
+    statement = (
+        select(PlexTrack)
+        .group_by(PlexTrack.hash_value)
+        .having(func.count(PlexTrack.hash_value) > 1)
+    )
+    dupe_set: Dict[str, List] = {}
+    for track in session.exec(statement):
+        dupe_query = select(PlexTrack).where(PlexTrack.hash_value == track.hash_value)
+        for dupe in session.exec(dupe_query):
+            if dupe.hash_value not in dupe_set:
+                dupe_set[dupe.hash_value] = []
+            dupe_set[dupe.hash_value].append(dupe)
     return templates.TemplateResponse(
         "duplicates.j2",
         {
             "request": request,
             "plex_user": plex_user,
             "config": config,
+            "dupe_set": dupe_set,
         },
     )
 
@@ -138,19 +167,26 @@ async def duplicates(
 @app.get("/preferences")
 async def preferences(
     request: Request,
-    plex_user: PlexUser = Depends(verify_plex_user),
+    user_uuid: Optional[str] = Depends(verify_plex_user),
+    session: Session = Depends(get_session),
+    _=Depends(verify_library_db_synced),
 ):
     """
     Renders the user's account page
     """
-    plex_servers: List[PlexServer] = plex_user.server_list
-    plex_music_libraries: List[PlexLibrary] = plex_user.music_library_list
+    plex_user: PlexUser = query_user_by_uuid(session, user_uuid)
+
+    plex_servers: List[PlexServer] = plex_user.servers
+    plex_music_libraries: Optional[List[PlexLibrary]] = None
     selected_server_id: Optional[str] = None
     selected_music_library_id: Optional[str] = None
-    if plex_user.server:
-        selected_server_id: Optional[str] = plex_user.server.uuid
-    if plex_user.music_library:
-        selected_music_library_id: Optional[str] = plex_user.music_library.uuid
+    if plex_user.preferred_server:
+        plex_music_libraries: List[PlexLibrary] = plex_user.preferred_server.libraries
+        selected_server_id: Optional[str] = plex_user.preferred_server.uuid
+        if plex_user.preferred_music_library:
+            selected_music_library_id: Optional[str] = (
+                plex_user.preferred_music_library.uuid
+            )
     return templates.TemplateResponse(
         "preferences.j2",
         {
@@ -174,12 +210,15 @@ class PreferenceFormData(BaseModel):
 async def save_preferences(
     request: Request,
     data: Annotated[PreferenceFormData, Form()],
-    plex_user: PlexUser = Depends(verify_plex_user),
+    user_uuid: Optional[str] = Depends(verify_plex_user),
+    session: Session = Depends(get_session),
+    _=Depends(verify_library_db_synced),
 ):
+    plex_user: PlexUser = query_user_by_uuid(session, user_uuid)
     if data.server_id:
-        plex_user.set_server(data.server_id)
+        plex_user.set_server(session, data.server_id)
     if data.music_library_id:
-        plex_user.set_music_library(data.music_library_id)
+        plex_user.set_music_library(session, data.music_library_id)
     redirect_url = request.url_for("preferences")
     response = RedirectResponse(url=redirect_url, status_code=status.HTTP_302_FOUND)
     return response
